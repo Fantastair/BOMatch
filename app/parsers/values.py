@@ -23,8 +23,8 @@ _PREFIX: dict[str, float] = {
     "f": 1e-15,
 }
 
-# 尾部单位符号（贪婪匹配，Ω/ohm/欧姆 等文本形式兼容）
-_UNIT_RE = re.compile(r"(Ω|Ohm|OHM|ohm|欧姆|欧|F|H|V|A|W|Hz)\s*$")
+# 尾部单位符号（贪婪匹配，Ω/ohm/欧姆 等文本形式兼容；大小写不敏感）
+_UNIT_RE = re.compile(r"(Ω|Ohm|OHM|ohm|欧姆|欧|F|H|V|A|W|Hz)\s*$", re.IGNORECASE)
 
 # 数值部分：数字 + 可选后缀字母 + 可选小数位（3k3 = 3.3k）
 _NUM_TOKEN_RE = re.compile(r"^(\d+(?:\.\d+)?)([TGMkKmµμunpf]?)(\d*)$")
@@ -71,7 +71,9 @@ def parse_value(text: str) -> ParsedValue | None:
     value = parse_number(num_part)
     if value is None:
         return None
-    return ParsedValue(value=value, unit=_UNIT_NORMALIZE.get(unit, unit), raw=raw)
+    # 单位归一化：ohm/欧姆→Ω，小写 f/h/v 等→大写（F/H/V）
+    unit = _UNIT_NORMALIZE.get(unit, unit.upper())
+    return ParsedValue(value=value, unit=unit, raw=raw)
 
 
 def parse_number(token: str) -> float | None:

@@ -40,12 +40,19 @@ def _resolve_row(session: Session, row: dict) -> tuple[str, int | None]:
     canonical_key 记录实际匹配到的料号等效键（否则为 BOM 推断键），
     使缺料统计与真实库存对齐。
     """
-    value_text, tolerance = split_tolerance(row.get("value") or "")
+    value_raw = (row.get("value") or "").strip()
     mpn = (row.get("mpn") or "").strip()
     package = row.get("package") or ""
 
+    # 优先整串解析："100nF" 的单位 F 不能被当成容差字母拆掉
+    value_text, tolerance = value_raw, ""
+    parsed = parse_value(value_raw)
+    if parsed is None:
+        # 整串无法解析（可能带 "10k 1%" / "104J" 容差后缀），拆分容差再试
+        value_text, tolerance = split_tolerance(value_raw)
+        parsed = parse_value(value_text)
+
     category = None
-    parsed = parse_value(value_text) if value_text else None
     if parsed is not None:
         category = infer_category_from_unit(parsed.unit)
         if category is None and parsed.unit == "":

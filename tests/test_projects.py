@@ -81,6 +81,36 @@ def test_project_create_and_empty_detail() -> None:
         assert "缺料汇总" not in page.text  # 尚未导入
 
 
+def test_bom_100nf_capacitor_matches_stock() -> None:
+    """回归：BOM 里的 100nF 电容应匹配到库存电容（修复 F 被误判为容差）"""
+    with TestClient(app) as client:
+        _login(client)
+        cap_id = _make_part(
+            client,
+            mpn="CC0805KRX7R9BB104",
+            category_id="2",
+            value="100nF",
+            package="0805",
+            voltage="50V",
+            dielectric="X7R",
+        )
+        _inbound(client, cap_id, 50)
+        project_id = _make_project(client)
+        _import_bom(
+            client,
+            project_id,
+            "Designator\tComment\tFootprint\tQuantity\nC1\t100nF\t0805\t5\n",
+        )
+        page = client.get(f"/projects/{project_id}")
+        assert "缺料汇总" in page.text
+        with SessionLocal() as session:
+            item = session.execute(
+                select(BOMItem).where(BOMItem.project_id == project_id)
+            ).scalar_one()
+            assert item.part_id == cap_id
+            assert item.canonical_key.startswith("C|1e-07|0805|50|X7R")
+
+
 def test_bom_import_matches_stock_and_reports_shortage() -> None:
     with TestClient(app) as client:
         _login(client)

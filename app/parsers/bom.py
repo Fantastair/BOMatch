@@ -28,7 +28,9 @@ _COLUMN_ALIASES: dict[str, list[str]] = {
 }
 
 # 容差后缀（如 "10k 1%"、"100nF ±5%"、孤立容差字母）
-_TOLERANCE_RE = re.compile(r"(±?\d+(?:\.\d+)?%|[FJGKMB])\s*$")
+# 注意：容差字母（F/J/G/K/M/B）必须是数值后紧跟的字母，
+# 避免把 "100nF" 的单位 F（法拉）误判为容差 1%。
+_TOLERANCE_RE = re.compile(r"(±?\d+(?:\.\d+)?%|(?<=\d)[FJGKMB])\s*$")
 
 
 def split_tolerance(text: str) -> tuple[str, str]:

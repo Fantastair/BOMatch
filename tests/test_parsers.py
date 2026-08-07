@@ -2,6 +2,7 @@
 
 import pytest
 
+from app.parsers.bom import split_tolerance
 from app.parsers.canonical import (
     build_canonical_key,
     compute_canonical_key,
@@ -44,6 +45,26 @@ def test_parse_value(text: str, value: float, unit: str) -> None:
 )
 def test_parse_value_invalid(text: str) -> None:
     assert parse_value(text) is None
+
+
+@pytest.mark.parametrize("text", ["100nf", "0.1uf"])
+def test_parse_value_lowercase_unit(text: str) -> None:
+    """小写单位也应解析并归一化为大写（100nf → F）"""
+    result = parse_value(text)
+    assert result is not None, text
+    assert result.value == pytest.approx(1e-07)
+    assert result.unit == "F"
+
+
+def test_split_tolerance_keeps_unit_letter() -> None:
+    """100nF 的 F 是法拉单位，不能被当成容差字母拆掉（回归）"""
+    value, tolerance = split_tolerance("100nF")
+    assert value == "100nF"
+    assert tolerance == ""
+    # 真正的容差照常拆分
+    value, tolerance = split_tolerance("104J")
+    assert value == "104"
+    assert tolerance == "J"
 
 
 @pytest.mark.parametrize(
