@@ -33,39 +33,63 @@ def _parse_quantity(text: str | None) -> int:
     return int(match.group()) if match else 1
 
 
+def _find_by_supplier(session: Session, supplier: str) -> Part | None:
+    """按立创编号反查库存料号（lcsc_code 字段；mpn 本身是立创编号格式时也匹配）。"""
+    if not supplier:
+        return None
+    part = (
+        session.execute(select(Part).where(Part.lcsc_code == supplier).order_by(Part.id))
+        .scalars()
+        .first()
+    )
+    if part is None and re.fullmatch(r"C\d+", supplier):
+        part = (
+            session.execute(select(Part).where(Part.mpn == supplier).order_by(Part.id))
+            .scalars()
+            .first()
+        )
+    return part
+
+
 def _resolve_row(session: Session, row: dict) -> tuple[str, int | None]:
     """解析 BOM 行 → (canonical_key, 匹配到的料号 id 或 None)
 
-    匹配顺序：① 按值+封装推断的等效键（无单位数值默认电阻）② 按料号精确匹配。
+    匹配顺序：① 立创编号反查 ② 按值+封装推断的等效键（无单位数值默认电阻）③ 按料号精确匹配。
     canonical_key 记录实际匹配到的料号等效键（否则为 BOM 推断键），
     使缺料统计与真实库存对齐。
     """
     value_raw = (row.get("value") or "").strip()
     mpn = (row.get("mpn") or "").strip()
     package = row.get("package") or ""
+    supplier = (row.get("supplier_part") or "").strip()
 
-    # 优先整串解析："100nF" 的单位 F 不能被当成容差字母拆掉
-    value_text, tolerance = value_raw, ""
-    parsed = parse_value(value_raw)
-    if parsed is None:
-        # 整串无法解析（可能带 "10k 1%" / "104J" 容差后缀），拆分容差再试
-        value_text, tolerance = split_tolerance(value_raw)
-        parsed = parse_value(value_text)
-
-    category = None
-    if parsed is not None:
-        category = infer_category_from_unit(parsed.unit)
-        if category is None and parsed.unit == "":
-            category = "电阻"  # 无单位数值默认电阻（BOM 常见）
+    # ① 立创编号精确反查库存（BOM 常带立创编号，命中率最高）
+    part = _find_by_supplier(session, supplier)
 
     bom_key = ""
-    part = None
-    if category:
-        value_num, unit = resolve_value(value_text, category)
-        bom_key = part_canonical_key(
-            category, mpn, value_num, unit, package or None, tolerance or None, None, None
-        )
-        part = find_part_for_canonical_key(session, bom_key)
+    if part is None:
+        # ② 优先整串解析："100nF" 的单位 F 不能被当成容差字母拆掉
+        value_text, tolerance = value_raw, ""
+        parsed = parse_value(value_raw)
+        if parsed is None:
+            # 整串无法解析（可能带 "10k 1%" / "104J" 容差后缀），拆分容差再试
+            value_text, tolerance = split_tolerance(value_raw)
+            parsed = parse_value(value_text)
+
+        category = None
+        if parsed is not None:
+            category = infer_category_from_unit(parsed.unit)
+            if category is None and parsed.unit == "":
+                category = "电阻"  # 无单位数值默认电阻（BOM 常见）
+
+        if category:
+            value_num, unit = resolve_value(value_text, category)
+            bom_key = part_canonical_key(
+                category, mpn, value_num, unit, package or None, tolerance or None, None, None
+            )
+            part = find_part_for_canonical_key(session, bom_key)
+
+    # ③ 料号精确匹配
     if part is None and mpn:
         part = (
             session.execute(select(Part).where(Part.mpn == mpn).order_by(Part.id)).scalars().first()

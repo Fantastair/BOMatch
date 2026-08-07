@@ -111,6 +111,60 @@ def test_bom_100nf_capacitor_matches_stock() -> None:
             assert item.canonical_key.startswith("C|1e-07|0805|50|X7R")
 
 
+def test_bom_matches_by_supplier_code() -> None:
+    """BOM 带立创编号时优先反查库存（最高性价比匹配）"""
+    with TestClient(app) as client:
+        _login(client)
+        part_id = _make_part(
+            client,
+            mpn="CC0603KRX7R9BB104",
+            category_id="2",
+            value="100nF",
+            package="0603",
+            voltage="50V",
+            dielectric="X7R",
+        )
+        with SessionLocal() as s:
+            p = s.get(Part, part_id)
+            assert p is not None
+            p.lcsc_code = "C14663"
+            s.commit()
+        project_id = _make_project(client)
+        _import_bom(
+            client,
+            project_id,
+            "Designator\tComment\tFootprint\tQuantity\tLCSC\nC1\t100nF\tC0603\t5\tC14663\n",
+        )
+        with SessionLocal() as s:
+            item = s.execute(select(BOMItem).where(BOMItem.project_id == project_id)).scalar_one()
+            assert item.part_id == part_id
+
+
+def test_bom_package_normalization_matches() -> None:
+    """BOM 封装 C0603 应匹配库存 0603（封装规范化）"""
+    with TestClient(app) as client:
+        _login(client)
+        part_id = _make_part(
+            client,
+            mpn="CGA0603X7R104K500JT",
+            category_id="2",
+            value="100nF",
+            package="0603",
+            voltage="50V",
+            dielectric="X7R",
+        )
+        _inbound(client, part_id, 10)
+        project_id = _make_project(client)
+        _import_bom(
+            client,
+            project_id,
+            "Designator\tComment\tFootprint\tQuantity\nC1\t100nF\tC0603\t5\n",
+        )
+        with SessionLocal() as s:
+            item = s.execute(select(BOMItem).where(BOMItem.project_id == project_id)).scalar_one()
+            assert item.part_id == part_id
+
+
 def test_bom_import_matches_stock_and_reports_shortage() -> None:
     with TestClient(app) as client:
         _login(client)

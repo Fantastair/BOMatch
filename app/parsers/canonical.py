@@ -4,6 +4,8 @@
 归入同一等效键，库存匹配就按等效键聚合。
 """
 
+import re
+
 # 容差字母标号 → 百分比（IEC 62 惯例）
 _TOLERANCE_LETTER: dict[str, str] = {
     "B": "0.1%",
@@ -33,11 +35,32 @@ def normalize_tolerance(text: str | None) -> str | None:
         return None
 
 
+_PKG_SOT_RE = re.compile(r"sot-\d+")
+
+
 def normalize_package(text: str | None) -> str | None:
-    """封装归一化：去空格、转小写（0603 / SMD-0603）。"""
+    """封装归一化：小写、去空格，并统一常见写法。
+
+    处理立创 EDA 封装名差异：
+        C0603 / R0603 → 0603
+        SOT-23-3_L2.9-W1.3-P1.90-LS2.4-BR → SOT-23（取下划线前主名 + SOT 系列）
+        CAP-TH_BD5.0-P2.00-D0.5-FD / *_TH_* → 插件
+    """
     if not text:
         return None
-    return text.strip().lower().replace(" ", "")
+    t = text.strip().lower().replace(" ", "")
+    # 立创封装常带尺寸段（xxx_L2.9-W1.3...），先取下划线前主名
+    t = t.split("_")[0]
+    # 剥离 C/R 前缀：C0603 / R0603 → 0603
+    t = re.sub(r"^[cr](\d)", r"\1", t)
+    # TH 直插（cap-th / res-th / *_th）→ 插件
+    if "-th" in t:
+        return "插件"
+    # SOT 系列统一为 SOT-x（SOT-23-3 → SOT-23，SOT-223 → SOT-223）
+    m = _PKG_SOT_RE.search(t)
+    if m:
+        return m.group(0)
+    return t
 
 
 def normalize_dielectric(text: str | None) -> str | None:
@@ -48,8 +71,18 @@ def normalize_dielectric(text: str | None) -> str | None:
 
 
 def _fmt(value: float | None) -> str:
-    """数值格式化为规范字符串（去掉多余零）。"""
-    return f"{value:.6g}" if value is not None else ""
+    """数值格式化为规范字符串（同值必同串，避免 0.00047 vs 4.7e-04 分裂）。
+
+    整数 → 整数形式；其余 → 统一科学计数（6 位有效数字，去尾零）。
+    """
+    if value is None:
+        return ""
+    v = float(value)
+    if v.is_integer():
+        return str(int(v))
+    mantissa, exp = f"{v:.5e}".split("e")
+    mantissa = mantissa.rstrip("0").rstrip(".")
+    return f"{mantissa}e{exp}"
 
 
 def compute_canonical_key(

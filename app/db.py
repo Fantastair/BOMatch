@@ -2,7 +2,7 @@
 
 from collections.abc import Iterator
 
-from sqlalchemy import create_engine, event
+from sqlalchemy import create_engine, event, select
 from sqlalchemy.orm import DeclarativeBase, Session, sessionmaker
 
 from app.config import DATABASE_PATH
@@ -45,6 +45,42 @@ def _ensure_column(engine, table: str, column: str, ddl: str) -> None:
             conn.exec_driver_sql(f"ALTER TABLE {table} ADD COLUMN {column} {ddl}")
 
 
+def _recompute_canonical_keys() -> None:
+    """重算所有料号与已匹配 BOM 项的等效键（幂等）。
+
+    规范化规则升级（数值格式统一、封装归一化）后，让存量数据与
+    新逻辑保持一致；启动时自动执行，数据量小开销可忽略。
+    """
+    from app.models import BOMItem, Part
+    from app.parsers.part import part_canonical_key
+
+    with SessionLocal() as session:
+        changed = 0
+        parts = session.execute(select(Part)).scalars().all()
+        for p in parts:
+            new_key = part_canonical_key(
+                p.category.name,
+                p.mpn,
+                p.value,
+                p.value_unit,
+                p.package,
+                p.tolerance,
+                p.voltage,
+                p.dielectric,
+            )
+            if new_key and new_key != p.canonical_key:
+                p.canonical_key = new_key
+                changed += 1
+        # 已匹配 BOM 项同步为对应料号的 key
+        items = session.execute(select(BOMItem).where(BOMItem.part_id.is_not(None))).scalars().all()
+        for item in items:
+            if item.part and item.canonical_key != item.part.canonical_key:
+                item.canonical_key = item.part.canonical_key
+                changed += 1
+        if changed:
+            session.commit()
+
+
 def init_db() -> None:
     """初始化数据库表结构（幂等）"""
     import app.models  # noqa: F401  确保模型已注册
@@ -52,3 +88,5 @@ def init_db() -> None:
     Base.metadata.create_all(bind=engine)
     # 历史表补列迁移
     _ensure_column(engine, "parts", "lcsc_code", "VARCHAR(32)")
+    # 规范化规则升级后重算存量等效键
+    _recompute_canonical_keys()

@@ -127,10 +127,28 @@ def test_normalize_tolerance(text: str | None, expected: str | None) -> None:
 
 @pytest.mark.parametrize(
     ("text", "expected"),
-    [(" 0603 ", "0603"), ("SMD-0805", "smd-0805"), (None, None)],
+    [
+        (" 0603 ", "0603"),
+        ("SMD-0805", "smd-0805"),
+        ("C0603", "0603"),
+        ("R0603", "0603"),
+        ("SOT-23-3_L2.9-W1.3-P1.90-LS2.4-BR", "sot-23"),
+        ("CAP-TH_BD5.0-P2.00-D0.5-FD", "插件"),
+        (None, None),
+    ],
 )
 def test_normalize_package(text: str | None, expected: str | None) -> None:
     assert normalize_package(text) == expected
+
+
+def test_canonical_value_format_unified() -> None:
+    """同值不同表示应产生相同等效键（0.00047 == 4.7e-04，1e6 == 1000000）"""
+    k1 = compute_canonical_key("电容", 0.00047, "F", "0805", None, 50, "X7R")
+    k2 = compute_canonical_key("电容", 4.7e-04, "F", "0805", None, 50, "X7R")
+    assert k1 == k2
+    r1 = compute_canonical_key("电阻", 1_000_000.0, "Ω", "0603", "1%")
+    r2 = compute_canonical_key("电阻", 1e6, "Ω", "0603", "1%")
+    assert r1 == r2
 
 
 @pytest.mark.parametrize(
