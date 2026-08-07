@@ -58,5 +58,6 @@ jobs:
           port: ${{ secrets.SERVER_PORT }}
           key: ${{ secrets.SERVER_SSH_KEY }}
           script: |
-            cd /opt/bomatch && git pull --ff-only
+            # 注意：不要在 update.sh 之外先 git pull——
+            # 否则 update.sh 里第二次 pull 检测不到新提交，会跳过重启（历史 bug）
             bash /opt/bomatch/deploy/update.sh
