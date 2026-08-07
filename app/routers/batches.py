@@ -23,11 +23,15 @@ def _categories(session: Session) -> list[Category]:
 def stock_overview(
     request: Request,
     q: str = "",
-    category_id: int | None = None,
+    category_id: str = "",
     session: Session = Depends(get_session),
     user: User = Depends(require_auth),
 ) -> HTMLResponse:
     """库存总览：按料号聚合剩余数量与金额"""
+    # 前端"全部类别"提交空字符串，需解析为 int
+    cat_id: int | None = None
+    if category_id.isdigit():
+        cat_id = int(category_id)
     stmt = select(
         Part,
         func.coalesce(func.sum(Batch.quantity), 0),
@@ -37,8 +41,8 @@ def stock_overview(
     if q.strip():
         like = f"%{q.strip()}%"
         stmt = stmt.where(Part.mpn.ilike(like) | Part.manufacturer.ilike(like))
-    if category_id:
-        stmt = stmt.where(Part.category_id == category_id)
+    if cat_id:
+        stmt = stmt.where(Part.category_id == cat_id)
     rows = session.execute(stmt.group_by(Part.id).order_by(Part.id.desc())).all()
 
     total_units = session.scalar(select(func.coalesce(func.sum(Batch.quantity), 0))) or 0
@@ -53,7 +57,7 @@ def stock_overview(
             "rows": rows,
             "categories": _categories(session),
             "q": q,
-            "category_id": category_id,
+            "category_id": cat_id,
             "total_units": total_units,
             "total_value": total_value,
             "user": user.username,

@@ -160,3 +160,15 @@ def test_stock_search_and_filter() -> None:
         page = client.get("/stock", params={"q": "Yageo"})
         assert "RC0603FR-0710KL" in page.text
         assert "ERJ-3EKF1002V" not in page.text
+
+
+def test_empty_category_filter_no_error() -> None:
+    """筛选表单提交空 category_id（全部类别）不应 422（回归：修复 int 解析错误）"""
+    with TestClient(app) as client:
+        _login(client)
+        stock = client.get("/stock", params={"q": "", "category_id": ""})
+        assert stock.status_code == 200
+        assert "库存" in stock.text
+        parts = client.get("/parts", params={"q": "", "category_id": ""})
+        assert parts.status_code == 200
+        assert "料号" in parts.text

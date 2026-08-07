@@ -86,18 +86,22 @@ def _categories(session: Session) -> list[Category]:
 def list_parts(
     request: Request,
     q: str = "",
-    category_id: int | None = None,
+    category_id: str = "",
     session: Session = Depends(get_session),
     user: User = Depends(require_auth),
 ) -> HTMLResponse:
+    # 前端"全部类别"提交空字符串，需解析为 int
+    cat_id: int | None = None
+    if category_id.isdigit():
+        cat_id = int(category_id)
     stmt = select(Part)
     if q.strip():
         like = f"%{q.strip()}%"
         stmt = stmt.where(
             Part.mpn.ilike(like) | Part.manufacturer.ilike(like) | Part.description.ilike(like)
         )
-    if category_id:
-        stmt = stmt.where(Part.category_id == category_id)
+    if cat_id:
+        stmt = stmt.where(Part.category_id == cat_id)
     parts = session.execute(stmt.order_by(Part.id.desc())).scalars().all()
     return TEMPLATES.TemplateResponse(
         request,
@@ -106,7 +110,7 @@ def list_parts(
             "parts": parts,
             "categories": _categories(session),
             "q": q,
-            "category_id": category_id,
+            "category_id": cat_id,
             "user": user.username,
         },
     )
