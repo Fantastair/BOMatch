@@ -259,6 +259,19 @@ main {
   font-weight: 600;
 }
 
+.loc-sel {
+  max-width: 96px;
+  padding: 2px 4px;
+}
+
+.link-btn {
+  background: none;
+  border: none;
+  color: var(--accent);
+  cursor: pointer;
+  padding: 2px 4px;
+}
+
 .form-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));

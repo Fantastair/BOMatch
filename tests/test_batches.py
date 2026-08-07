@@ -216,3 +216,36 @@ def test_stock_low_stock_marked() -> None:
         _inbound(client, p1, 5)
         page = client.get("/stock")
         assert "stock-low" in page.text
+
+
+def test_batch_location_update() -> None:
+    """单个批次改库位 + 批量设置（后期补录库位）"""
+    with TestClient(app) as client:
+        _login(client)
+        part_id = _make_part(client)
+        _inbound(client, part_id, 10)
+        batch_id = _batch_id(client, part_id)
+        loc1 = _make_location(client, "A1-1")
+        loc2 = _make_location(client, "B2-1")
+        # 单个修改
+        resp = client.post(
+            f"/batches/{batch_id}/location",
+            data={"location_id": str(loc1)},
+            follow_redirects=False,
+        )
+        assert resp.status_code == 303
+        with SessionLocal() as s:
+            batch = s.get(Batch, batch_id)
+            assert batch is not None
+            assert batch.location_id == loc1
+        # 批量设置（不勾选"仅未指定"= 全部批次，覆盖为 loc2）
+        resp = client.post(
+            f"/parts/{part_id}/batches/set-location",
+            data={"location_id": str(loc2)},
+            follow_redirects=False,
+        )
+        assert resp.status_code == 303
+        with SessionLocal() as s:
+            batch = s.get(Batch, batch_id)
+            assert batch is not None
+            assert batch.location_id == loc2

@@ -185,3 +185,40 @@ def delete_batch(batch_id: int, session: Session = Depends(get_session)) -> Redi
     session.delete(batch)
     session.commit()
     return RedirectResponse(f"/parts/{part_id}", status_code=303)
+
+
+@router.post("/batches/{batch_id}/location", response_model=None)
+def update_batch_location(
+    batch_id: int,
+    location_id: str = Form(""),
+    session: Session = Depends(get_session),
+) -> RedirectResponse:
+    """修改单个批次库位（后期补录）"""
+    batch = session.get(Batch, batch_id)
+    if batch is None:
+        return RedirectResponse("/stock", status_code=303)
+    batch.location_id = int(location_id) if location_id.strip().isdigit() else None
+    session.commit()
+    return RedirectResponse(f"/parts/{batch.part_id}", status_code=303)
+
+
+@router.post("/parts/{part_id}/batches/set-location", response_model=None)
+def set_part_batch_locations(
+    part_id: int,
+    location_id: str = Form(""),
+    only_unassigned: str = Form(""),
+    session: Session = Depends(get_session),
+) -> RedirectResponse:
+    """批量设置该料号所有批次（或仅未分配库位的）的库位"""
+    part = session.get(Part, part_id)
+    if part is None:
+        return RedirectResponse("/parts", status_code=303)
+    loc_id = int(location_id) if location_id.strip().isdigit() else None
+    stmt = select(Batch).where(Batch.part_id == part_id)
+    if only_unassigned == "1":
+        stmt = stmt.where(Batch.location_id.is_(None))
+    batches = session.execute(stmt).scalars().all()
+    for b in batches:
+        b.location_id = loc_id
+    session.commit()
+    return RedirectResponse(f"/parts/{part_id}", status_code=303)

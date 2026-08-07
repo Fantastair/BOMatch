@@ -55,7 +55,17 @@
     <tbody>
       {% for b in batches %}
       <tr>
-        <td>{{ b.location.name if b.location else "未指定" }}</td>
+        <td>
+          <form method="post" action="/batches/{{ b.id }}/location" class="inline">
+            <select name="location_id" class="loc-sel">
+              <option value="">未指定</option>
+              {% for loc in locations %}
+              <option value="{{ loc.id }}" {% if b.location and b.location.id == loc.id %}selected{% endif %}>{{ loc.name }}</option>
+              {% endfor %}
+            </select>
+            <button type="submit" class="link-btn">改</button>
+          </form>
+        </td>
         <td>{{ b.quantity }}</td>
         <td>{{ "%.3f"|format(b.unit_price) if b.unit_price else "—" }}</td>
         <td>{{ "%.2f"|format(b.quantity * b.unit_price) if b.unit_price else "—" }}</td>
@@ -84,6 +94,16 @@
       {% endfor %}
     </tbody>
   </table>
+
+  <h3>批量设置库位</h3>
+  <form method="post" action="/parts/{{ part.id }}/batches/set-location" class="filters">
+    <select name="location_id">
+      <option value="">未指定</option>
+      {% for loc in locations %}<option value="{{ loc.id }}">{{ loc.name }}</option>{% endfor %}
+    </select>
+    <label class="chk"><input type="checkbox" name="only_unassigned" value="1" checked> 仅未分配库位的批次</label>
+    <button type="submit">批量设置</button>
+  </form>
 
   <h3>入库</h3>
   <form method="post" action="/parts/{{ part.id }}/batches" class="form-grid">
