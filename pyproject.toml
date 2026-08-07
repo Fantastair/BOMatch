@@ -3,6 +3,7 @@ name = "bomatch"
 version = "0.1.0"
 description = "BOMatch - 个人电子元件物料管理系统"
 readme = "README.md"
+license = "MIT"
 requires-python = ">=3.14"
 dependencies = [
     "fastapi>=0.141.1",

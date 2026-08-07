@@ -195,3 +195,11 @@ sudo systemctl restart bomatch
 
 **Q: 多 worker 会不会更快？**
 不建议。SQLite 单文件不适合多进程并发写，单 worker 对个人使用完全足够，也最稳。
+
+---
+
+## 许可证
+
+[MIT](LICENSE) © 2026 Fantastair
+
+本项目开源，但**仅支持私人部署**，不提供公开在线服务；数据只存储在你自己的服务器上。
