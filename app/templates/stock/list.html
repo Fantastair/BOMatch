@@ -1,0 +1,51 @@
+{% extends "base.html" %}
+
+{% block title %}库存 · BOMatch{% endblock %}
+
+{% block content %}
+<main>
+  <nav class="breadcrumb"><a href="/">首页</a><span class="sep">/</span><span class="current">库存</span></nav>
+  <div class="page-head">
+    <h2>库存</h2>
+    <div class="summary">共 <strong>{{ total_units }}</strong> 个，总金额
+      <strong>{{ "%.2f"|format(total_value) }}</strong> 元</div>
+  </div>
+
+  <form method="get" action="/stock" class="filters">
+    <input type="search" name="q" value="{{ q }}" placeholder="搜索料号 / 厂商">
+    <select name="category_id">
+      <option value="">全部类别</option>
+      {% for c in categories %}
+      <option value="{{ c.id }}" {% if category_id == c.id %}selected{% endif %}>{{ c.name }}</option>
+      {% endfor %}
+    </select>
+    <button type="submit">筛选</button>
+  </form>
+
+  <table class="data-table">
+    <thead>
+      <tr>
+        <th>料号</th><th>厂商</th><th>类别</th><th>值</th><th>封装</th>
+        <th>容差</th><th>批次</th><th>库存</th><th>金额</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for p, qty, value, batch_count in rows %}
+      <tr>
+        <td><a href="/parts/{{ p.id }}?from_page=stock">{{ p.mpn }}</a></td>
+        <td>{{ p.manufacturer or "" }}</td>
+        <td>{{ p.category.name }}</td>
+        <td>{{ p.value_raw or "" }}</td>
+        <td>{{ p.package or "" }}</td>
+        <td>{{ p.tolerance or "" }}</td>
+        <td>{{ batch_count }}</td>
+        <td>{{ qty }}</td>
+        <td>{{ "%.2f"|format(value) }}</td>
+      </tr>
+      {% else %}
+      <tr><td colspan="9" class="empty">暂无数据</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</main>
+{% endblock %}

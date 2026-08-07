@@ -1,0 +1,32 @@
+{% extends "base.html" %}
+
+{% block title %}首页 · BOMatch{% endblock %}
+
+{% block content %}
+<main>
+  <h2>概览</h2>
+  <div class="cards">
+    <a class="card" href="/projects">
+      <div class="card-num">{{ project_count }}</div>
+      <div class="card-label">项目</div>
+    </a>
+    <a class="card" href="/stock">
+      <div class="card-num">{{ stock_units }}</div>
+      <div class="card-label">库存 · {{ "%.2f"|format(stock_value) }} 元</div>
+    </a>
+    <a class="card" href="/parts">
+      <div class="card-num">{{ part_count }}</div>
+      <div class="card-label">料号</div>
+    </a>
+    <a class="card" href="/categories">
+      <div class="card-num">{{ category_count }}</div>
+      <div class="card-label">类别</div>
+    </a>
+    <a class="card" href="/locations">
+      <div class="card-num">{{ location_count }}</div>
+      <div class="card-label">库位</div>
+    </a>
+  </div>
+  <p><a class="button" href="/parts/new">新增料号</a></p>
+</main>
+{% endblock %}

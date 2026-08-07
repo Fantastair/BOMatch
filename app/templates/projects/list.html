@@ -1,0 +1,37 @@
+{% extends "base.html" %}
+
+{% block title %}项目 · BOMatch{% endblock %}
+
+{% block content %}
+<main>
+  <nav class="breadcrumb"><a href="/">首页</a><span class="sep">/</span><span class="current">项目</span></nav>
+  <div class="page-head">
+    <h2>项目</h2>
+    <a class="button" href="/projects/new">新建项目</a>
+  </div>
+
+  <table class="data-table">
+    <thead>
+      <tr><th>项目</th><th>说明</th><th>创建时间</th><th></th></tr>
+    </thead>
+    <tbody>
+      {% for p in projects %}
+      <tr>
+        <td><a href="/projects/{{ p.id }}">{{ p.name }}</a></td>
+        <td>{{ p.description or "" }}</td>
+        <td>{{ p.created_at.date().isoformat() }}</td>
+        <td class="row-actions">
+          <a href="/projects/{{ p.id }}">BOM 匹配</a>
+          <form method="post" action="/projects/{{ p.id }}/delete" class="inline"
+                onsubmit="return confirm('删除项目 {{ p.name }}？')">
+            <button type="submit" class="link-danger">删除</button>
+          </form>
+        </td>
+      </tr>
+      {% else %}
+      <tr><td colspan="4" class="empty">暂无项目</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</main>
+{% endblock %}

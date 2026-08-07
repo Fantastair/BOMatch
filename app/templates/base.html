@@ -1,0 +1,28 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>{% block title %}BOMatch{% endblock %}</title>
+    <link rel="stylesheet" href="/static/style.css">
+  </head>
+  <body>
+    {% if user %}
+    <header class="topbar">
+      <h1><a href="/" class="brand">BOMatch</a></h1>
+      <nav>
+        {% set p = request.url.path %}
+        <a href="/projects" class="{{ 'active' if p.startswith('/projects') else '' }}">项目</a>
+        <a href="/stock" class="{{ 'active' if p.startswith('/stock') else '' }}">库存</a>
+        <a href="/parts" class="{{ 'active' if p.startswith('/parts') else '' }}">料号</a>
+        <a href="/categories" class="{{ 'active' if p.startswith('/categories') else '' }}">类别</a>
+        <a href="/locations" class="{{ 'active' if p.startswith('/locations') else '' }}">库位</a>
+        <a href="/password" class="{{ 'active' if p.startswith('/password') else '' }}">修改密码</a>
+        <span>你好，{{ user }}</span>
+        <form method="post" action="/logout"><button type="submit">退出登录</button></form>
+      </nav>
+    </header>
+    {% endif %}
+    {% block content %}{% endblock %}
+  </body>
+</html>

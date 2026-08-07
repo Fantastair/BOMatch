@@ -1,0 +1,102 @@
+{% extends "base.html" %}
+
+{% block title %}{{ part.mpn }} · BOMatch{% endblock %}
+
+{% block content %}
+<main>
+  <nav class="breadcrumb">
+    <a href="/">首页</a><span class="sep">/</span>
+    {% if from_page == 'stock' %}<a href="/stock">库存</a>
+    {% else %}<a href="/parts">料号</a>{% endif %}
+    <span class="sep">/</span><span class="current">{{ part.mpn }}</span>
+  </nav>
+  <div class="page-head">
+    <h2>{{ part.mpn }}</h2>
+    <a class="button" href="/parts/{{ part.id }}/edit">编辑料号</a>
+  </div>
+
+  <div class="meta-box">
+    <p>
+      <strong>厂商</strong> {{ part.manufacturer or "—" }} ·
+      <strong>类别</strong> {{ part.category.name }} ·
+      <strong>值</strong> {{ part.value_raw or "—" }} ·
+      <strong>封装</strong> {{ part.package or "—" }} ·
+      <strong>容差</strong> {{ part.tolerance or "—" }} ·
+      <strong>耐压</strong> {{ "%g"|format(part.voltage) if part.voltage else "—" }} ·
+      <strong>介质</strong> {{ part.dielectric or "—" }}
+    </p>
+    <p><strong>等效组</strong> <code class="mono">{{ part.canonical_key }}</code></p>
+    {% if part.lcsc_code_effective %}
+    <p>
+      <strong>立创编号</strong> {{ part.lcsc_code_effective }}
+      <form method="post" action="/parts/{{ part.id }}/lcsc-sync" class="inline">
+        <button type="submit" class="button small">同步立创价格/参数</button>
+      </form>
+    </p>
+    {% endif %}
+    {% if part.description %}<p>{{ part.description }}</p>{% endif %}
+  </div>
+
+  {% if equivalents %}
+  <p class="hint">等效组内其他料号：
+    {% for e in equivalents %}<a href="/parts/{{ e.id }}?from_page={{ from_page }}">{{ e.mpn }}</a>{% if not loop.last %}、{% endif %}{% endfor %}
+  </p>
+  {% endif %}
+
+  <h3>库存：共 {{ total_qty }} 个，金额 {{ "%.2f"|format(total_value) }} 元</h3>
+
+  <table class="data-table">
+    <thead>
+      <tr>
+        <th>库位</th><th>数量</th><th>单价</th><th>金额</th><th>来源</th>
+        <th>备注</th><th>入库日期</th><th>领料</th><th></th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for b in batches %}
+      <tr>
+        <td>{{ b.location.name if b.location else "未指定" }}</td>
+        <td>{{ b.quantity }}</td>
+        <td>{{ "%.3f"|format(b.unit_price) if b.unit_price else "—" }}</td>
+        <td>{{ "%.2f"|format(b.quantity * b.unit_price) if b.unit_price else "—" }}</td>
+        <td>{{ b.source or "" }}</td>
+        <td>{{ b.note or "" }}</td>
+        <td>{{ b.received_at.date().isoformat() }}</td>
+        <td>
+          {% if b.quantity > 0 %}
+          <form method="post" action="/batches/{{ b.id }}/consume" class="inline">
+            <input type="number" name="quantity" min="1" max="{{ b.quantity }}" value="1" class="qty-input">
+            <button type="submit" class="link-danger">领料</button>
+          </form>
+          {% else %}
+          <span class="muted">已用完</span>
+          {% endif %}
+        </td>
+        <td>
+          <form method="post" action="/batches/{{ b.id }}/delete" class="inline"
+                onsubmit="return confirm('删除该批次？')">
+            <button type="submit" class="link-danger">删除</button>
+          </form>
+        </td>
+      </tr>
+      {% else %}
+      <tr><td colspan="9" class="empty">暂无库存，请入库</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+
+  <h3>入库</h3>
+  <form method="post" action="/parts/{{ part.id }}/batches" class="form-grid">
+    <p><label>库位
+      <select name="location_id">
+        <option value="">未指定</option>
+        {% for loc in locations %}<option value="{{ loc.id }}">{{ loc.name }}</option>{% endfor %}
+      </select></label></p>
+    <p><label>数量 *<input type="number" name="quantity" min="1" required></label></p>
+    <p><label>单价（可选）<input type="number" name="unit_price" min="0" step="0.001"></label></p>
+    <p><label>来源<input type="text" name="source"></label></p>
+    <p class="full"><label>备注<input type="text" name="note"></label></p>
+    <p class="full"><button type="submit">入库</button></p>
+  </form>
+</main>
+{% endblock %}

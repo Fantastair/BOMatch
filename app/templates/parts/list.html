@@ -1,0 +1,56 @@
+{% extends "base.html" %}
+
+{% block title %}料号 · BOMatch{% endblock %}
+
+{% block content %}
+<main>
+  <nav class="breadcrumb"><a href="/">首页</a><span class="sep">/</span><span class="current">料号</span></nav>
+  <div class="page-head">
+    <h2>料号</h2>
+    <a class="button" href="/parts/new">新增料号</a>
+  </div>
+
+  <form method="get" action="/parts" class="filters">
+    <input type="search" name="q" value="{{ q }}" placeholder="搜索料号 / 厂商 / 描述">
+    <select name="category_id">
+      <option value="">全部类别</option>
+      {% for c in categories %}
+      <option value="{{ c.id }}" {% if category_id == c.id %}selected{% endif %}>{{ c.name }}</option>
+      {% endfor %}
+    </select>
+    <button type="submit">筛选</button>
+  </form>
+
+  <table class="data-table">
+    <thead>
+      <tr>
+        <th>料号</th><th>厂商</th><th>类别</th><th>值</th><th>封装</th>
+        <th>容差</th><th>耐压</th><th>等效组</th><th></th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for p in parts %}
+      <tr>
+        <td><a href="/parts/{{ p.id }}">{{ p.mpn }}</a></td>
+        <td>{{ p.manufacturer or "" }}</td>
+        <td>{{ p.category.name }}</td>
+        <td>{{ p.value_raw or "" }}</td>
+        <td>{{ p.package or "" }}</td>
+        <td>{{ p.tolerance or "" }}</td>
+        <td>{{ "%g"|format(p.voltage) if p.voltage else "" }}</td>
+        <td class="mono">{{ p.canonical_key }}</td>
+        <td class="row-actions">
+          <a href="/parts/{{ p.id }}/edit">编辑</a>
+          <form method="post" action="/parts/{{ p.id }}/delete" class="inline"
+                onsubmit="return confirm('删除料号 {{ p.mpn }}？')">
+            <button type="submit" class="link-danger">删除</button>
+          </form>
+        </td>
+      </tr>
+      {% else %}
+      <tr><td colspan="9" class="empty">暂无料号</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</main>
+{% endblock %}

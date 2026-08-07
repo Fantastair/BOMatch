@@ -1,0 +1,27 @@
+# BOMatch systemd 服务模板
+# __APP_DIR__ / __USER__ 占位符由 deploy.sh 在安装时替换
+
+[Unit]
+Description=BOMatch - 个人电子元件物料管理系统
+After=network.target
+
+[Service]
+Type=simple
+User=__USER__
+Group=__USER__
+WorkingDirectory=__APP_DIR__
+# HTTPS 反代下启用 cookie 安全位
+Environment=BOMATCH_COOKIE_SECURE=1
+# 只监听本机回环，仅允许 Caddy 反向代理访问（不直接暴露端口）
+ExecStart=__APP_DIR__/.venv/bin/python -m uvicorn app.main:app --host 127.0.0.1 --port 8000 --workers 1
+Restart=always
+RestartSec=3
+
+# 安全加固：系统目录只读，仅数据/备份目录可写
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=full
+ReadWritePaths=__APP_DIR__/data __APP_DIR__/backups
+
+[Install]
+WantedBy=multi-user.target

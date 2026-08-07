@@ -1,0 +1,41 @@
+{% extends "base.html" %}
+
+{% block title %}{{ "编辑" if part else "新增" }}料号 · BOMatch{% endblock %}
+
+{% block content %}
+<main>
+  <nav class="breadcrumb">
+    <a href="/">首页</a><span class="sep">/</span><a href="/parts">料号</a><span class="sep">/</span>
+    {% if part %}<a href="/parts/{{ part.id }}">{{ part.mpn }}</a><span class="sep">/</span><span class="current">编辑</span>
+    {% else %}<span class="current">新增</span>{% endif %}
+  </nav>
+  <div class="page-head">
+    <h2>{{ "编辑料号" if part else "新增料号" }}</h2>
+  </div>
+
+  {% if error %}<p class="error">{{ error }}</p>{% endif %}
+
+  <form method="post" action="{{ '/parts/' ~ part.id ~ '/edit' if part else '/parts' }}" class="form-grid">
+    <p><label>类别 *
+      <select name="category_id" required>
+        {% for c in categories %}
+        <option value="{{ c.id }}" {% if part and part.category_id == c.id %}selected{% endif %}>{{ c.name }}</option>
+        {% endfor %}
+      </select></label></p>
+    <p><label>料号 (MPN) *
+      <input type="text" name="mpn" required value="{{ part.mpn if part else '' }}"></label></p>
+    <p><label>厂商 <input type="text" name="manufacturer" value="{{ part.manufacturer or '' }}"></label></p>
+    <p><label>立创编号（C 开头，可同步价格/参数）
+      <input type="text" name="lcsc_code" value="{{ part.lcsc_code or '' }}" placeholder="如 C21189"></label></p>
+    <p><label>数值（如 10k / 100nF / 104 / 2R2）
+      <input type="text" name="value" value="{{ part.value_raw or '' }}"></label></p>
+    <p><label>封装（如 0603）<input type="text" name="package" value="{{ part.package or '' }}"></label></p>
+    <p><label>容差（如 1% / J / F）<input type="text" name="tolerance" value="{{ part.tolerance or '' }}"></label></p>
+    <p><label>耐压（如 50V）<input type="text" name="voltage" value="{{ '%g'|format(part.voltage) if part and part.voltage else '' }}"></label></p>
+    <p><label>介质（电容，如 X7R）<input type="text" name="dielectric" value="{{ part.dielectric or '' }}"></label></p>
+    <p class="full"><label>描述 <input type="text" name="description" value="{{ part.description or '' }}"></label></p>
+    <p class="full"><label>数据手册 URL <input type="url" name="datasheet_url" value="{{ part.datasheet_url or '' }}"></label></p>
+    <p class="full"><button type="submit">保存</button></p>
+  </form>
+</main>
+{% endblock %}

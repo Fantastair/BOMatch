@@ -1,0 +1,443 @@
+:root {
+  color-scheme: light dark;
+  --bg: #f6f7f9;
+  --panel: #ffffff;
+  --text: #1f2328;
+  --muted: #59636e;
+  --accent: #0a7ea4;
+  --error: #b42318;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+  background: var(--bg);
+  color: var(--text);
+  line-height: 1.6;
+}
+
+h1 {
+  font-size: 1.5rem;
+}
+
+.login-box {
+  max-width: 320px;
+  margin: 12vh auto;
+  padding: 2rem;
+  background: var(--panel);
+  border: 1px solid #d0d7de;
+  border-radius: 8px;
+}
+
+.login-box h1 {
+  margin: 0 0 0.25rem;
+}
+
+.subtitle {
+  color: var(--muted);
+  margin-top: 0;
+}
+
+.error {
+  color: var(--error);
+}
+
+label {
+  display: block;
+  margin-bottom: 0.75rem;
+}
+
+input[type="text"],
+input[type="password"] {
+  width: 100%;
+  padding: 0.4rem 0.5rem;
+  border: 1px solid #d0d7de;
+  border-radius: 6px;
+  margin-top: 0.2rem;
+}
+
+button {
+  padding: 0.45rem 1rem;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  background: var(--accent);
+  color: #fff;
+  cursor: pointer;
+}
+
+.topbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.75rem 1.25rem;
+  background: var(--panel);
+  border-bottom: 1px solid #d0d7de;
+}
+
+.topbar nav {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  color: var(--muted);
+}
+
+.topbar nav a.active {
+  color: var(--accent);
+  font-weight: 600;
+}
+
+.topbar form {
+  margin: 0;
+}
+
+main {
+  padding: 1.25rem;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #0d1117;
+    --panel: #151b23;
+    --text: #e6edf3;
+    --muted: #9198a1;
+    --accent: #2f81f7;
+    --error: #ff7b72;
+  }
+  .login-box,
+  .topbar {
+    border-color: #30363d;
+  }
+  input[type="text"],
+  input[type="password"] {
+    border-color: #30363d;
+    background: #0d1117;
+    color: var(--text);
+  }
+}
+
+/* ---- 布局组件 ---- */
+.page-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.25rem 1.25rem;
+}
+
+.page-head h2 {
+  margin: 0;
+}
+
+.page-head a:not(.button) {
+  color: var(--accent);
+}
+
+.cards {
+  display: flex;
+  gap: 1rem;
+  flex-wrap: wrap;
+  padding: 0 1.25rem;
+}
+
+.card {
+  flex: 1;
+  min-width: 140px;
+  padding: 1.25rem;
+  background: var(--panel);
+  border: 1px solid #d0d7de;
+  border-radius: 8px;
+  text-align: center;
+  color: inherit;
+  text-decoration: none;
+}
+
+.card-num {
+  font-size: 1.75rem;
+  font-weight: 700;
+}
+
+.card-label {
+  color: var(--muted);
+}
+
+@media (prefers-color-scheme: dark) {
+  .card {
+    border-color: #30363d;
+  }
+}
+
+.filters {
+  display: flex;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+  padding: 0.75rem 1.25rem;
+}
+
+.filters input,
+.filters select {
+  padding: 0.4rem 0.5rem;
+  border: 1px solid #d0d7de;
+  border-radius: 6px;
+  background: var(--panel);
+  color: var(--text);
+}
+
+@media (prefers-color-scheme: dark) {
+  .filters input,
+  .filters select {
+    border-color: #30363d;
+  }
+}
+
+.data-table {
+  border-collapse: collapse;
+  margin: 0.5rem 1.25rem;
+  width: calc(100% - 2.5rem);
+}
+
+.data-table th,
+.data-table td {
+  text-align: left;
+  padding: 0.5rem 0.75rem;
+  border-bottom: 1px solid #d0d7de;
+  font-size: 0.9rem;
+}
+
+.data-table th {
+  color: var(--muted);
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+@media (prefers-color-scheme: dark) {
+  .data-table th,
+  .data-table td {
+    border-bottom-color: #30363d;
+  }
+}
+
+.row-actions {
+  white-space: nowrap;
+}
+
+.row-actions a {
+  color: var(--accent);
+  margin-right: 0.5rem;
+}
+
+.inline {
+  display: inline;
+  margin: 0;
+}
+
+.link-danger {
+  background: none;
+  border: none;
+  color: var(--error);
+  padding: 0;
+  cursor: pointer;
+  text-decoration: underline;
+}
+
+.mono {
+  font-family: ui-monospace, Consolas, monospace;
+  font-size: 0.8rem;
+  color: var(--muted);
+}
+
+.empty {
+  color: var(--muted);
+  text-align: center;
+  padding: 2rem 0 !important;
+}
+
+.form-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: 0.5rem 1rem;
+  padding: 0 1.25rem;
+  max-width: 860px;
+}
+
+.form-grid p {
+  margin: 0;
+}
+
+.form-grid .full {
+  grid-column: 1 / -1;
+}
+
+.form-grid label {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  font-size: 0.9rem;
+  color: var(--muted);
+}
+
+.form-grid input,
+.form-grid select {
+  width: 100%;
+  padding: 0.4rem 0.5rem;
+  border: 1px solid #d0d7de;
+  border-radius: 6px;
+  background: var(--panel);
+  color: var(--text);
+}
+
+@media (prefers-color-scheme: dark) {
+  .form-grid input,
+  .form-grid select {
+    border-color: #30363d;
+  }
+}
+
+a.button {
+  text-decoration: none;
+}
+
+.button {
+  display: inline-block;
+  padding: 0.45rem 1rem;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  background: var(--accent);
+  color: #fff;
+  cursor: pointer;
+}
+
+.button.small {
+  padding: 0.2rem 0.6rem;
+  font-size: 0.85rem;
+}
+
+/* ---- 面包屑 ---- */
+.breadcrumb {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.75rem 1.25rem 0;
+  font-size: 0.85rem;
+  color: var(--muted);
+}
+
+.breadcrumb a {
+  color: var(--accent);
+  text-decoration: none;
+}
+
+.breadcrumb a:hover {
+  text-decoration: underline;
+}
+
+.breadcrumb .sep {
+  color: var(--muted);
+}
+
+.breadcrumb .current {
+  color: var(--text);
+}
+
+.brand {
+  color: inherit;
+  text-decoration: none;
+}
+
+/* ---- 详情/库存组件 ---- */
+.meta-box {
+  padding: 0 1.25rem;
+}
+
+.meta-box p {
+  margin: 0.25rem 0;
+}
+
+.meta-box strong {
+  color: var(--muted);
+  font-weight: 600;
+}
+
+.hint {
+  padding: 0 1.25rem;
+  color: var(--muted);
+}
+
+.muted {
+  color: var(--muted);
+}
+
+.summary {
+  color: var(--muted);
+}
+
+.summary strong {
+  color: var(--text);
+}
+
+.qty-input {
+  width: 5em;
+  padding: 0.25rem 0.4rem;
+  border: 1px solid #d0d7de;
+  border-radius: 6px;
+  background: var(--panel);
+  color: var(--text);
+}
+
+@media (prefers-color-scheme: dark) {
+  .qty-input {
+    border-color: #30363d;
+  }
+}
+
+/* ---- BOM / 项目 ---- */
+.bom-input {
+  width: 100%;
+  padding: 0.5rem;
+  border: 1px solid #d0d7de;
+  border-radius: 6px;
+  background: var(--panel);
+  color: var(--text);
+  font-family: ui-monospace, Consolas, monospace;
+  font-size: 0.85rem;
+}
+
+@media (prefers-color-scheme: dark) {
+  .bom-input {
+    border-color: #30363d;
+  }
+}
+
+.row-ok td {
+  color: var(--muted);
+}
+
+.row-short {
+  background: color-mix(in srgb, var(--error) 8%, transparent);
+}
+
+.ok {
+  color: #1a7f37;
+}
+
+.warn {
+  color: var(--error);
+}
+
+.short-num {
+  color: var(--error);
+}
+
+.short-zero {
+  color: #1a7f37;
+}
+
+@media (prefers-color-scheme: dark) {
+  .ok,
+  .short-zero {
+    color: #3fb950;
+  }
+}

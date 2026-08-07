@@ -1,0 +1,37 @@
+{% extends "base.html" %}
+
+{% block title %}类别 · BOMatch{% endblock %}
+
+{% block content %}
+<main>
+  <nav class="breadcrumb"><a href="/">首页</a><span class="sep">/</span><span class="current">类别</span></nav>
+  <div class="page-head"><h2>类别</h2></div>
+
+  <form method="post" action="/categories" class="filters">
+    <input type="text" name="name" placeholder="新类别名" required>
+    <input type="text" name="description" placeholder="说明（可选）">
+    <button type="submit">新增</button>
+  </form>
+
+  <table class="data-table">
+    <thead><tr><th>类别</th><th>说明</th><th>料号数</th><th></th></tr></thead>
+    <tbody>
+      {% for c, count in categories %}
+      <tr>
+        <td>{{ c.name }}</td>
+        <td>{{ c.description or "" }}</td>
+        <td>{{ count }}</td>
+        <td class="row-actions">
+          <form method="post" action="/categories/{{ c.id }}/delete" class="inline"
+                onsubmit="return confirm('删除类别 {{ c.name }}？')">
+            <button type="submit" class="link-danger">删除</button>
+          </form>
+        </td>
+      </tr>
+      {% else %}
+      <tr><td colspan="4" class="empty">暂无类别</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</main>
+{% endblock %}

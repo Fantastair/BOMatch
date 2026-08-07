@@ -1,0 +1,137 @@
+"""立创同步：参数映射 / 回填逻辑 / 页面同步路由测试（mock 网络）"""
+
+from unittest.mock import patch
+
+from fastapi.testclient import TestClient
+
+from app.db import SessionLocal
+from app.main import app
+from app.models import Batch, Category, Part
+from app.services.lcsc import LcscProduct, apply_product, map_params, query_product
+
+ADMIN = "admin"
+PASSWORD = "testpass123"
+
+
+def test_map_params() -> None:
+    params = {"容值": "100nF", "精度": "±10%", "额定电压": "50V", "温度系数": "X7R"}
+    tolerance, voltage, dielectric = map_params(params)
+    assert tolerance == "10%"
+    assert voltage == 50.0
+    assert dielectric == "X7R"
+
+
+def test_map_params_empty() -> None:
+    assert map_params({}) == (None, None, None)
+    assert map_params(None) == (None, None, None)
+
+
+def test_apply_product_backfills_and_recalculates() -> None:
+    cat = Category(name="电阻")
+    part = Part(
+        mpn="C21189",
+        category=cat,
+        value=10000.0,
+        value_unit="Ω",
+        value_raw="10kΩ",
+        package="0603",
+        canonical_key="R|10000|0603|",
+    )
+    batch = Batch(quantity=100)
+    part.batches.append(batch)
+
+    product = LcscProduct(
+        code="C21189", model="RC0603FR-0710KL", brand="Yageo", tolerance="1%", moq_price=0.0942
+    )
+    apply_product(part, product)
+
+    assert part.lcsc_code == "C21189"
+    assert part.mpn == "RC0603FR-0710KL"  # mpn 从立创编号迁移到厂家型号
+    assert part.manufacturer == "Yageo"
+    assert part.tolerance == "1%"
+    assert part.canonical_key == "R|10000|0603|1%"  # 容差参与后等效键变精确
+    assert batch.unit_price == 0.0942
+
+
+def test_apply_product_keeps_existing_values() -> None:
+    cat = Category(name="电容")
+    part = Part(
+        mpn="CC0805KRX7R9BB104",
+        category=cat,
+        manufacturer="Yageo",
+        value=1e-7,
+        value_unit="F",
+        value_raw="100nF",
+        package="0805",
+        tolerance="10%",
+        canonical_key="C|1e-07|0805||",
+    )
+    product = LcscProduct(code="C14663", model="FCC0603B104K500CT", tolerance="5%")
+    apply_product(part, product)
+    # 已有容差/厂商不覆盖；非 C 开头 mpn 不动
+    assert part.tolerance == "10%"
+    assert part.manufacturer == "Yageo"
+    assert part.mpn == "CC0805KRX7R9BB104"
+
+
+def test_query_product_falls_back_to_jsonld() -> None:
+    with (
+        patch("app.services.lcsc._query_substitute", return_value=None),
+        patch("app.services.lcsc.query_by_pid") as mock_b,
+    ):
+        mock_b.return_value = LcscProduct(code="C1", model="X", moq_price=1.0)
+        result = query_product("C1", pid="123")
+        assert result is not None
+        assert result.model == "X"
+        mock_b.assert_called_once_with("123")
+
+
+def _login(client: TestClient) -> None:
+    client.post(
+        "/login",
+        data={"username": ADMIN, "password": PASSWORD},
+        follow_redirects=False,
+    )
+
+
+def test_lcsc_sync_route_backfills_part() -> None:
+    with TestClient(app) as client:
+        _login(client)
+        resp = client.post(
+            "/parts",
+            data={
+                "category_id": "1",
+                "mpn": "C21189",
+                "manufacturer": "",
+                "value": "10k",
+                "package": "0603",
+                "tolerance": "",
+                "voltage": "",
+                "dielectric": "",
+                "description": "",
+                "datasheet_url": "",
+                "lcsc_code": "C21189",
+            },
+            follow_redirects=False,
+        )
+        assert resp.status_code == 303
+        with SessionLocal() as session:
+            part = session.query(Part).filter_by(mpn="C21189").one()
+            part_id = part.id
+            session.add(Batch(part_id=part_id, quantity=50))
+            session.commit()
+
+        product = LcscProduct(code="C21189", model="RC0603FR-0710KL", tolerance="1%", moq_price=0.5)
+        with patch("app.routers.parts.query_product", return_value=product):
+            resp = client.post(f"/parts/{part_id}/lcsc-sync", follow_redirects=False)
+            assert resp.status_code == 303
+
+        with SessionLocal() as session:
+            part = session.get(Part, part_id)
+            assert part is not None
+            batch = session.query(Batch).filter_by(part_id=part_id).one()
+            assert part.mpn == "RC0603FR-0710KL"
+            assert part.lcsc_code == "C21189"
+            assert part.tolerance == "1%"
+            assert part.canonical_key == "R|10000|0603|1%"
+            assert batch.unit_price == 0.5

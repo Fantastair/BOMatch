@@ -1,0 +1,20 @@
+{% extends "base.html" %}
+
+{% block title %}新建项目 · BOMatch{% endblock %}
+
+{% block content %}
+<main>
+  <nav class="breadcrumb"><a href="/">首页</a><span class="sep">/</span><a href="/projects">项目</a><span class="sep">/</span><span class="current">新建</span></nav>
+  <div class="page-head">
+    <h2>新建项目</h2>
+  </div>
+
+  {% if error %}<p class="error">{{ error }}</p>{% endif %}
+
+  <form method="post" action="/projects" class="form-grid">
+    <p><label>项目名称 *<input type="text" name="name" required></label></p>
+    <p><label>说明<input type="text" name="description"></label></p>
+    <p class="full"><button type="submit">创建</button></p>
+  </form>
+</main>
+{% endblock %}

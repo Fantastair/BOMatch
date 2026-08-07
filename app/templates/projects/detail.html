@@ -1,0 +1,68 @@
+{% extends "base.html" %}
+
+{% block title %}{{ project.name }} · BOMatch{% endblock %}
+
+{% block content %}
+<main>
+  <nav class="breadcrumb"><a href="/">首页</a><span class="sep">/</span><a href="/projects">项目</a><span class="sep">/</span><span class="current">{{ project.name }}</span></nav>
+  <div class="page-head">
+    <h2>{{ project.name }}</h2>
+    <form method="post" action="/projects/{{ project.id }}/delete" class="inline"
+          onsubmit="return confirm('删除项目 {{ project.name }}？')">
+      <button type="submit" class="link-danger">删除项目</button>
+    </form>
+  </div>
+
+  <h3>导入 BOM</h3>
+  {% if error %}<p class="error">{{ error }}</p>{% endif %}
+  <form method="post" action="/projects/{{ project.id }}/bom">
+    <textarea name="bom_text" rows="8" class="bom-input"
+      placeholder="从立创 EDA / Excel 复制 BOM（含表头）粘贴到这里。&#10;支持列：Designator / Value(Comment) / Footprint / Quantity / Manufacturer Part 等。&#10;重新粘贴会覆盖当前 BOM 并重新匹配。"></textarea>
+    <p><button type="submit">解析并匹配</button></p>
+  </form>
+
+  {% if summary %}
+  <h3>缺料汇总：需求 {{ total_items }} 个，缺 <strong class="{{ 'short-zero' if total_short == 0 else 'short-num' }}">{{ total_short }}</strong> 个</h3>
+  <table class="data-table">
+    <thead>
+      <tr><th>值</th><th>封装</th><th>料号</th><th>需求</th><th>库存</th><th>缺料</th><th>建议购买</th></tr>
+    </thead>
+    <tbody>
+      {% for s in summary %}
+      <tr class="{{ 'row-ok' if s.short == 0 else 'row-short' }}">
+        <td>{{ s.value_raw or "—" }}</td>
+        <td>{{ s.package or "—" }}</td>
+        <td>{{ s.mpn or "—" }}</td>
+        <td>{{ s.need }}</td>
+        <td>{{ s.stock }}</td>
+        <td>{{ s.short }}</td>
+        <td>{{ s.short if s.short > 0 else "✓" }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+
+  <h3>BOM 明细（{{ items|length }} 行）</h3>
+  <table class="data-table">
+    <thead>
+      <tr><th>位号</th><th>料号</th><th>值</th><th>封装</th><th>数量</th><th>匹配</th></tr>
+    </thead>
+    <tbody>
+      {% for it in items %}
+      <tr>
+        <td>{{ it.designator or "—" }}</td>
+        <td>{{ it.mpn_raw or "—" }}</td>
+        <td>{{ it.value_raw or "—" }}</td>
+        <td>{{ it.package or "—" }}</td>
+        <td>{{ it.quantity }}</td>
+        <td>
+          {% if it.part_id %}<span class="ok">✓ {{ it.part.mpn if it.part else "" }}</span>
+          {% else %}<span class="warn">未匹配</span>{% endif %}
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% endif %}
+</main>
+{% endblock %}
