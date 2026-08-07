@@ -2,7 +2,7 @@
 
 from fastapi import APIRouter, Depends, Form, Request
 from fastapi.responses import HTMLResponse, RedirectResponse
-from sqlalchemy import select
+from sqlalchemy import or_, select
 from sqlalchemy.orm import Session
 
 from app.auth import require_auth
@@ -98,7 +98,17 @@ def list_parts(
     if q.strip():
         like = f"%{q.strip()}%"
         stmt = stmt.where(
-            Part.mpn.ilike(like) | Part.manufacturer.ilike(like) | Part.description.ilike(like)
+            or_(
+                Part.mpn.ilike(like),
+                Part.manufacturer.ilike(like),
+                Part.value_raw.ilike(like),
+                Part.package.ilike(like),
+                Part.tolerance.ilike(like),
+                Part.voltage.ilike(like),
+                Part.dielectric.ilike(like),
+                Part.description.ilike(like),
+                Part.lcsc_code.ilike(like),
+            )
         )
     if cat_id:
         stmt = stmt.where(Part.category_id == cat_id)

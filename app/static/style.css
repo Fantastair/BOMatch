@@ -254,6 +254,11 @@ main {
   padding: 2rem 0 !important;
 }
 
+.stock-low {
+  color: #d33;
+  font-weight: 600;
+}
+
 .form-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));

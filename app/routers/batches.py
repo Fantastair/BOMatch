@@ -2,15 +2,18 @@
 
 from fastapi import APIRouter, Depends, Form, Request
 from fastapi.responses import HTMLResponse, RedirectResponse
-from sqlalchemy import func, select
+from sqlalchemy import func, or_, select
 from sqlalchemy.orm import Session
 
 from app.auth import require_auth
 from app.db import get_session
-from app.models import Batch, Category, Part, User
+from app.models import Batch, Category, Location, Part, User
 from app.templating import TEMPLATES
 
 router = APIRouter(dependencies=[Depends(require_auth)])
+
+# 库存 ≤ 该值在列表中标红提示（低库存预警）
+LOW_STOCK_THRESHOLD = 10
 
 
 def _categories(session: Session) -> list[Category]:
@@ -24,25 +27,56 @@ def stock_overview(
     request: Request,
     q: str = "",
     category_id: str = "",
+    manufacturer: str = "",
+    package: str = "",
+    location_id: str = "",
+    has_stock: str = "",
     session: Session = Depends(get_session),
     user: User = Depends(require_auth),
 ) -> HTMLResponse:
-    """库存总览：按料号聚合剩余数量与金额"""
-    # 前端"全部类别"提交空字符串，需解析为 int
+    """库存总览：按料号聚合剩余数量与金额，支持全参数搜索与多维筛选"""
+    # 前端"全部"选项提交空字符串，需安全解析
     cat_id: int | None = None
     if category_id.isdigit():
         cat_id = int(category_id)
+    loc_id: int | None = None
+    if location_id.isdigit():
+        loc_id = int(location_id)
+
     stmt = select(
         Part,
         func.coalesce(func.sum(Batch.quantity), 0),
         func.coalesce(func.sum(Batch.quantity * Batch.unit_price), 0.0),
         func.count(Batch.id),
     ).outerjoin(Batch, Batch.part_id == Part.id)
+
+    # 全参数模糊搜索：料号/厂商/数值/封装/容差/耐压/介质/描述/立创编号
     if q.strip():
         like = f"%{q.strip()}%"
-        stmt = stmt.where(Part.mpn.ilike(like) | Part.manufacturer.ilike(like))
+        stmt = stmt.where(
+            or_(
+                Part.mpn.ilike(like),
+                Part.manufacturer.ilike(like),
+                Part.value_raw.ilike(like),
+                Part.package.ilike(like),
+                Part.tolerance.ilike(like),
+                Part.voltage.ilike(like),
+                Part.dielectric.ilike(like),
+                Part.description.ilike(like),
+                Part.lcsc_code.ilike(like),
+            )
+        )
     if cat_id:
         stmt = stmt.where(Part.category_id == cat_id)
+    if manufacturer:
+        stmt = stmt.where(Part.manufacturer == manufacturer)
+    if package:
+        stmt = stmt.where(Part.package == package)
+    if loc_id:
+        stmt = stmt.where(Batch.location_id == loc_id)
+    if has_stock == "1":
+        stmt = stmt.having(func.coalesce(func.sum(Batch.quantity), 0) > 0)
+
     rows = session.execute(stmt.group_by(Part.id).order_by(Part.id.desc())).all()
 
     total_units = session.scalar(select(func.coalesce(func.sum(Batch.quantity), 0))) or 0
@@ -50,14 +84,43 @@ def stock_overview(
         session.scalar(select(func.coalesce(func.sum(Batch.quantity * Batch.unit_price), 0.0)))
         or 0.0
     )
+    brands = (
+        session.execute(
+            select(Part.manufacturer)
+            .where(Part.manufacturer.is_not(None), Part.manufacturer != "")
+            .distinct()
+            .order_by(Part.manufacturer)
+        )
+        .scalars()
+        .all()
+    )
+    packages = (
+        session.execute(
+            select(Part.package)
+            .where(Part.package.is_not(None), Part.package != "")
+            .distinct()
+            .order_by(Part.package)
+        )
+        .scalars()
+        .all()
+    )
+    locations = session.execute(select(Location).order_by(Location.name)).scalars().all()
     return TEMPLATES.TemplateResponse(
         request,
         "stock/list.html",
         {
             "rows": rows,
             "categories": _categories(session),
+            "brands": brands,
+            "packages": packages,
+            "locations": locations,
             "q": q,
             "category_id": cat_id,
+            "manufacturer": manufacturer,
+            "package": package,
+            "location_id": loc_id,
+            "has_stock": has_stock,
+            "low_threshold": LOW_STOCK_THRESHOLD,
             "total_units": total_units,
             "total_value": total_value,
             "user": user.username,

@@ -12,13 +12,32 @@
   </div>
 
   <form method="get" action="/stock" class="filters">
-    <input type="search" name="q" value="{{ q }}" placeholder="搜索料号 / 厂商">
+    <input type="search" name="q" value="{{ q }}" placeholder="搜索料号 / 厂商 / 数值 / 封装...">
     <select name="category_id">
       <option value="">全部类别</option>
       {% for c in categories %}
       <option value="{{ c.id }}" {% if category_id == c.id %}selected{% endif %}>{{ c.name }}</option>
       {% endfor %}
     </select>
+    <select name="manufacturer">
+      <option value="">全部品牌</option>
+      {% for b in brands %}
+      <option value="{{ b }}" {% if manufacturer == b %}selected{% endif %}>{{ b }}</option>
+      {% endfor %}
+    </select>
+    <select name="package">
+      <option value="">全部封装</option>
+      {% for p in packages %}
+      <option value="{{ p }}" {% if package == p %}selected{% endif %}>{{ p }}</option>
+      {% endfor %}
+    </select>
+    <select name="location_id">
+      <option value="">全部库位</option>
+      {% for l in locations %}
+      <option value="{{ l.id }}" {% if location_id == l.id %}selected{% endif %}>{{ l.name }}</option>
+      {% endfor %}
+    </select>
+    <label class="chk"><input type="checkbox" name="has_stock" value="1" {% if has_stock == '1' %}checked{% endif %}> 有库存</label>
     <button type="submit">筛选</button>
   </form>
 
@@ -39,7 +58,7 @@
         <td>{{ p.package or "" }}</td>
         <td>{{ p.tolerance or "" }}</td>
         <td>{{ batch_count }}</td>
-        <td>{{ qty }}</td>
+        <td class="{{ 'stock-low' if qty <= low_threshold else '' }}">{{ qty }}</td>
         <td>{{ "%.2f"|format(value) }}</td>
       </tr>
       {% else %}

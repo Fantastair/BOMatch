@@ -172,3 +172,47 @@ def test_empty_category_filter_no_error() -> None:
         parts = client.get("/parts", params={"q": "", "category_id": ""})
         assert parts.status_code == 200
         assert "料号" in parts.text
+
+
+def test_stock_search_matches_value_field() -> None:
+    """全参数搜索：按数值命中"""
+    with TestClient(app) as client:
+        _login(client)
+        _make_part(client, mpn="RC0603FR-0710KL", value="10k")
+        _make_part(client, mpn="ERJ-3EKF1002V", value="100k")
+        page = client.get("/stock", params={"q": "10k"})
+        assert "RC0603FR-0710KL" in page.text
+        assert "ERJ-3EKF1002V" not in page.text
+
+
+def test_stock_filter_by_manufacturer() -> None:
+    """按品牌筛选"""
+    with TestClient(app) as client:
+        _login(client)
+        _make_part(client, mpn="RC0603FR-0710KL", manufacturer="Yageo")
+        _make_part(client, mpn="ERJ-3EKF1002V", manufacturer="Panasonic")
+        page = client.get("/stock", params={"manufacturer": "Yageo"})
+        assert "RC0603FR-0710KL" in page.text
+        assert "ERJ-3EKF1002V" not in page.text
+
+
+def test_stock_filter_has_stock() -> None:
+    """只看有库存的料号"""
+    with TestClient(app) as client:
+        _login(client)
+        p1 = _make_part(client, mpn="RC0603FR-0710KL")
+        _make_part(client, mpn="ERJ-3EKF1002V")
+        _inbound(client, p1, 10)
+        page = client.get("/stock", params={"has_stock": "1"})
+        assert "RC0603FR-0710KL" in page.text
+        assert "ERJ-3EKF1002V" not in page.text
+
+
+def test_stock_low_stock_marked() -> None:
+    """库存低于阈值标红"""
+    with TestClient(app) as client:
+        _login(client)
+        p1 = _make_part(client, mpn="RC0603FR-0710KL")
+        _inbound(client, p1, 5)
+        page = client.get("/stock")
+        assert "stock-low" in page.text
