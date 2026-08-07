@@ -34,9 +34,9 @@ jobs:
     name: 测试 (pytest)
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@v7.0.1
       - name: 安装 uv
-        uses: astral-sh/setup-uv@v9
+        uses: astral-sh/setup-uv@v9.0.0
       - name: 安装 Python 3.14
         run: uv python install 3.14
       - name: 同步依赖
@@ -50,7 +50,7 @@ jobs:
     needs: test
     steps:
       - name: 通过 SSH 更新部署
-        uses: appleboy/ssh-action@v1
+        uses: appleboy/ssh-action@v1.2.5
         with:
           host: ${{ secrets.SERVER_HOST }}
           username: ${{ secrets.SERVER_USER }}
