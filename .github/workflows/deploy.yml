@@ -1,26 +1,55 @@
 # BOMatch 自动部署工作流
-# 触发：push 到 master/main 或手动触发（workflow_dispatch）
-# 作用：通过 SSH 登录生产服务器，拉取最新代码并重启服务
+#
+# 触发条件：
+#   - push 到 master/main，且改动涉及应用代码（app/ 等）
+#   - README / 文档 / 部署配置 / CI 配置等改动不会触发（paths-ignore）
+#   - 可在 Actions 页手动触发（workflow_dispatch）
+#
+# 流程：
+#   1. test：在 GitHub Runner 上跑 pytest，通过后才允许部署
+#   2. deploy：SSH 登录生产服务器，先拉代码再执行 deploy/update.sh 更新并重启
 #
 # 需要在 GitHub 仓库 Settings → Secrets and variables → Actions 配置：
 #   SERVER_HOST    服务器公网 IP（如 8.152.101.207）
 #   SERVER_PORT    SSH 端口（默认 22）
-#   SERVER_USER    SSH 用户（如 fanagent）
-#   SERVER_SSH_KEY 部署用 SSH 私钥（与服务器 authorized_keys 配对）
+#   SERVER_USER    SSH 部署用户（deployer）
+#   SERVER_SSH_KEY 部署用 SSH 私钥（与服务器 deployer 的 authorized_keys 配对）
 
 name: 部署 BOMatch
 
 on:
   push:
     branches: [master, main]
+    paths-ignore:
+      - '*.md'
+      - 'docs/**'
+      - 'deploy/**'
+      - '.github/**'
+      - '.gitignore'
+      - '.gitattributes'
   workflow_dispatch:
 
 jobs:
-  deploy:
-    name: SSH 部署到生产服务器
+  test:
+    name: 测试 (pytest)
     runs-on: ubuntu-latest
     steps:
-      - name: 通过 SSH 在服务器上更新部署
+      - uses: actions/checkout@v4
+      - name: 安装 uv
+        uses: astral-sh/setup-uv@v5
+      - name: 安装 Python 3.14
+        run: uv python install 3.14
+      - name: 同步依赖
+        run: uv sync --python 3.14 --frozen
+      - name: 运行测试
+        run: uv run pytest -q
+
+  deploy:
+    name: 部署到生产服务器
+    runs-on: ubuntu-latest
+    needs: test
+    steps:
+      - name: 通过 SSH 更新部署
         uses: appleboy/ssh-action@v1
         with:
           host: ${{ secrets.SERVER_HOST }}
@@ -28,4 +57,5 @@ jobs:
           port: ${{ secrets.SERVER_PORT }}
           key: ${{ secrets.SERVER_SSH_KEY }}
           script: |
+            cd /opt/bomatch && git pull --ff-only
             bash /opt/bomatch/deploy/update.sh

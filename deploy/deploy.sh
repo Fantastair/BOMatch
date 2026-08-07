@@ -29,8 +29,15 @@ SITE_CONF="/etc/nginx/sites-available/${DOMAIN}"
 echo "==> [1/5] 安装 Python 3.14（由 uv 管理，不动系统 Python）"
 uv python install 3.14
 
-echo "==> [2/5] 同步项目依赖到虚拟环境"
-uv sync --python 3.14 --frozen
+echo "==> [2/5] 安装项目依赖（清华镜像，绕开 uv.lock 锁定的慢速下载源）"
+# 注意：不用 `uv sync --frozen` —— 它按 uv.lock 里锁定的 URL（Fastly）下载，海外服务器极慢/卡死
+mkdir -p "$APP_DIR/data" "$APP_DIR/backups"
+/usr/local/bin/uv export --frozen --no-hashes --format requirements.txt -o /tmp/bomatch_reqs.txt
+/usr/local/bin/uv pip install -r /tmp/bomatch_reqs.txt
+rm -f /tmp/bomatch_reqs.txt
+
+# 应用目录数据目录归属应用用户
+sudo chown -R "$APP_USER":"$APP_USER" "$APP_DIR/data" "$APP_DIR/backups"
 
 echo "==> [3/5] 安装 systemd 服务 bomatch.service"
 sed -e "s|__APP_DIR__|$APP_DIR|g" -e "s|__USER__|$APP_USER|g" \

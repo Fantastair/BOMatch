@@ -99,26 +99,32 @@ rsync -av data/ fanagent@<服务器IP>:/opt/bomatch/data/
 
 ### 第 3 步：配置 GitHub Actions 自动部署
 
-之后每次 `git push` 到 `master`，Actions 会自动 SSH 到服务器拉代码并重启服务。
+之后每次 `git push`（涉及应用代码）会自动**先测试再部署**：先在 GitHub Runner 上跑 pytest，全部通过后才 SSH 到服务器更新并重启。
 
-#### 3.1 生成部署密钥并在服务器授权
+> **触发条件**：只有 `app/` 等应用代码或 `pyproject.toml` / `uv.lock` 变化才触发；
+> 改 README、文档、`deploy/`、CI 配置等**不会**触发（见 `.github/workflows/deploy.yml` 的 `paths-ignore`）。
+
+#### 3.1 部署密钥（复用 deployer 已有的）
+
+服务器 `deployer` 账户已有部署密钥 `~/.ssh/id_ed25519`（之前网站部署在用），直接把它的私钥内容填入 GitHub Secrets 即可，无需重新生成：
 
 ```bash
-# 在服务器上生成专用部署密钥（不要用你日常的 SSH 私钥）
-ssh-keygen -t ed25519 -f ~/.ssh/bomatch_deploy -N "" -C "github-actions"
-cat ~/.ssh/bomatch_deploy.pub >> ~/.ssh/authorized_keys
-chmod 600 ~/.ssh/authorized_keys
-cat ~/.ssh/bomatch_deploy   # 记下私钥全文，下一步填入 GitHub
+# 在服务器查看私钥（切勿提交到任何仓库）
+sudo cat /home/deployer/.ssh/id_ed25519
 ```
 
-#### 3.2 授权 sudo 重启服务（最小权限）
+#### 3.2 授权 deployer 重启 bomatch（最小权限）
 
 ```bash
 sudo tee /etc/sudoers.d/bomatch > /dev/null <<'EOF'
-fanagent ALL=(root) NOPASSWD: /usr/bin/systemctl restart bomatch
+deployer ALL=(root) NOPASSWD: /usr/bin/systemctl restart bomatch, /usr/bin/systemctl start bomatch, /usr/bin/systemctl stop bomatch, /usr/bin/systemctl status bomatch
 EOF
+sudo chmod 0440 /etc/sudoers.d/bomatch
 sudo visudo -c   # 校验语法
 ```
+
+> 依赖下载慢？给 deployer 配置国内镜像提速：
+> `printf 'index-url = "https://pypi.tuna.tsinghua.edu.cn/simple/"\n' > /home/deployer/.config/uv/uv.toml`
 
 #### 3.3 配置 GitHub Secrets
 
@@ -128,12 +134,12 @@ sudo visudo -c   # 校验语法
 | ---- | ---- |
 | `SERVER_HOST` | 服务器公网 IP（如 8.152.101.207） |
 | `SERVER_PORT` | 22 |
-| `SERVER_USER` | fanagent |
-| `SERVER_SSH_KEY` | 上一步的 `bomatch_deploy` 私钥全文 |
+| `SERVER_USER` | `deployer` |
+| `SERVER_SSH_KEY` | deployer 的 `id_ed25519` 私钥全文 |
 
 #### 3.4 测试
 
-推送任意提交，在仓库 **Actions** 页观察 `部署 BOMatch` 工作流；
+推送应用代码提交，在仓库 **Actions** 页观察 `测试 (pytest)` 与 `部署` 两个 job；
 也可点击 `workflow_dispatch` 手动触发。
 
 ### 配置自动备份
