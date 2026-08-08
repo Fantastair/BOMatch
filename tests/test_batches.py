@@ -239,7 +239,9 @@ def test_inbound_duplicate_source_note_blocked_then_forced() -> None:
         assert resp.status_code == 303
         assert resp.headers["location"].endswith("?dup=1")
         with SessionLocal() as session:
-            count = len(session.execute(select(Batch).where(Batch.part_id == part_id)).scalars().all())
+            count = len(
+                session.execute(select(Batch).where(Batch.part_id == part_id)).scalars().all()
+            )
         assert count == 1
         # 不同 note 不拦截
         resp = client.post(
@@ -257,7 +259,9 @@ def test_inbound_duplicate_source_note_blocked_then_forced() -> None:
         )
         assert resp.status_code == 303
         with SessionLocal() as session:
-            count = len(session.execute(select(Batch).where(Batch.part_id == part_id)).scalars().all())
+            count = len(
+                session.execute(select(Batch).where(Batch.part_id == part_id)).scalars().all()
+            )
         assert count == 3
 
 

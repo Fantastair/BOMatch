@@ -86,7 +86,9 @@ def _ensure_unique_index(table: str, column: str) -> None:
     index_name = f"uq_{table}_{column}"
     with engine.begin() as conn:
         try:
-            conn.exec_driver_sql(f"CREATE UNIQUE INDEX IF NOT EXISTS {index_name} ON {table}({column})")
+            conn.exec_driver_sql(
+                f"CREATE UNIQUE INDEX IF NOT EXISTS {index_name} ON {table}({column})"
+            )
         except Exception:  # noqa: BLE001  存量重复 → 跳过，不阻塞启动
             pass
 

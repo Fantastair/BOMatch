@@ -322,10 +322,7 @@ def part_detail(
     recent_batches = [
         {"source": b.source or "", "note": b.note or ""}
         for b in session.execute(
-            select(Batch)
-            .where(Batch.part_id == part_id)
-            .order_by(Batch.id.desc())
-            .limit(5)
+            select(Batch).where(Batch.part_id == part_id).order_by(Batch.id.desc()).limit(5)
         ).scalars()
     ]
     locations = session.execute(select(Location).order_by(Location.name)).scalars().all()

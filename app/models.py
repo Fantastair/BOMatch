@@ -67,7 +67,7 @@ class Part(Base):
             return []
         try:
             items = json.loads(self.aliases)
-        except (TypeError, ValueError):
+        except TypeError, ValueError:
             return []
         if not isinstance(items, list):
             return []

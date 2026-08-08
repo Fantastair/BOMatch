@@ -155,7 +155,9 @@ def test_create_part_redirects_to_detail_page() -> None:
         loc = resp.headers["location"]
         assert loc.startswith("/parts/")
         with SessionLocal() as session:
-            part_id = session.execute(select(Part).where(Part.mpn == "RC0603FR-0710KL")).scalar_one().id
+            part_id = (
+                session.execute(select(Part).where(Part.mpn == "RC0603FR-0710KL")).scalar_one().id
+            )
         assert loc.startswith(f"/parts/{part_id}")
 
 
@@ -174,16 +176,18 @@ def test_lcsc_code_duplicate_rejected() -> None:
         # 更新为他人已有的编号同样拒绝
         _create_part(client, mpn="THIRD", lcsc_code="C9999")
         resp = client.post(
-            f"/parts/{_first_part_id(client)}/edit",
+            f"/parts/{_first_part_id()}/edit",
             data=_part_data(mpn="RC0603FR-0710KL", lcsc_code="C9999"),
             follow_redirects=False,
         )
         assert resp.status_code == 400
 
 
-def _first_part_id(client: TestClient) -> int:
+def _first_part_id() -> int:
     with SessionLocal() as session:
-        return session.execute(select(Part.id).order_by(Part.id)).scalars().first()
+        part_id = session.execute(select(Part.id).order_by(Part.id)).scalars().first()
+        assert part_id is not None, "测试前置：至少存在一个料号"
+        return part_id
 
 
 def test_x_category_aliases_merge_equivalent_group() -> None:

@@ -191,7 +191,9 @@ def query_by_pid(pid: str) -> LcscProduct | None:
     return None
 
 
-def query_product_detailed(code: str, pid: str | None = None) -> tuple[LcscProduct | None, str | None]:
+def query_product_detailed(
+    code: str, pid: str | None = None
+) -> tuple[LcscProduct | None, str | None]:
     """查询立创商品并返回人类可读的错误原因。
 
     返回 (product, error)：
