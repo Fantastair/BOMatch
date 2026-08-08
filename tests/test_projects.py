@@ -5,7 +5,7 @@ from sqlalchemy import select
 
 from app.db import SessionLocal
 from app.main import app
-from app.models import BOMItem, Part, Project
+from app.models import BOMItem, BOMOrder, Part, Project
 
 ADMIN = "admin"
 PASSWORD = "testpass123"
@@ -239,3 +239,75 @@ def test_shortage_summary_zero_when_stock_sufficient() -> None:
         assert ">6<" in page.text
         # 明细中电阻行匹配显示 ✓ 料号
         assert "✓ RC0603FR-0710KL" in page.text
+
+
+def test_bom_order_mark_persists_and_renders() -> None:
+    """缺料项标记已下单：POST 持久化，页面渲染勾选状态与计数"""
+    with TestClient(app) as client:
+        _login(client)
+        project_id = _make_project(client)
+        _import_bom(client, project_id, _BOM_TEXT)
+        # IC 未匹配库存，canonical_key 固定为 X|STM32F103C8T6
+        resp = client.post(
+            f"/projects/{project_id}/order",
+            data={"canonical_key": "X|STM32F103C8T6", "ordered": "1"},
+        )
+        assert resp.status_code == 200
+        assert resp.json() == {"ok": True, "ordered": True}
+
+        with SessionLocal() as session:
+            order = session.execute(
+                select(BOMOrder).where(
+                    BOMOrder.project_id == project_id,
+                    BOMOrder.canonical_key == "X|STM32F103C8T6",
+                )
+            ).scalar_one()
+            assert order.ordered is True
+
+        page = client.get(f"/projects/{project_id}")
+        assert 'id="order-count">1' in page.text  # 已下单 1 项
+        assert "row-ordered" in page.text  # 行有已下单样式
+        assert 'data-key="X|STM32F103C8T6"' in page.text
+
+
+def test_bom_order_unmark() -> None:
+    """再次提交可取消已下单标记"""
+    with TestClient(app) as client:
+        _login(client)
+        project_id = _make_project(client)
+        _import_bom(client, project_id, _BOM_TEXT)
+        client.post(
+            f"/projects/{project_id}/order",
+            data={"canonical_key": "X|STM32F103C8T6", "ordered": "1"},
+        )
+        resp = client.post(
+            f"/projects/{project_id}/order",
+            data={"canonical_key": "X|STM32F103C8T6", "ordered": "0"},
+        )
+        assert resp.json()["ordered"] is False
+        with SessionLocal() as session:
+            order = session.execute(
+                select(BOMOrder).where(
+                    BOMOrder.project_id == project_id,
+                    BOMOrder.canonical_key == "X|STM32F103C8T6",
+                )
+            ).scalar_one()
+            assert order.ordered is False
+        page = client.get(f"/projects/{project_id}")
+        assert 'id="order-count">0' in page.text
+
+
+def test_bom_order_flags_survive_reimport() -> None:
+    """重新导入相同 BOM 后，已下单标记（按等效键）仍保留"""
+    with TestClient(app) as client:
+        _login(client)
+        project_id = _make_project(client)
+        _import_bom(client, project_id, _BOM_TEXT)
+        client.post(
+            f"/projects/{project_id}/order",
+            data={"canonical_key": "X|STM32F103C8T6", "ordered": "1"},
+        )
+        _import_bom(client, project_id, _BOM_TEXT)  # 覆盖重建
+        page = client.get(f"/projects/{project_id}")
+        assert 'id="order-count">1' in page.text
+        assert "row-ordered" in page.text

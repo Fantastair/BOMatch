@@ -3,7 +3,7 @@
 import re
 from datetime import datetime, timezone
 
-from sqlalchemy import DateTime, Float, ForeignKey, Integer, String, Text
+from sqlalchemy import DateTime, Float, ForeignKey, Integer, String, Text, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db import Base
@@ -135,6 +135,33 @@ class Project(Base):
     bom_items: Mapped[list["BOMItem"]] = relationship(
         back_populates="project", cascade="all, delete-orphan"
     )
+    bom_orders: Mapped[list["BOMOrder"]] = relationship(
+        back_populates="project", cascade="all, delete-orphan"
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=lambda: datetime.now(timezone.utc)
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        default=lambda: datetime.now(timezone.utc),
+        onupdate=lambda: datetime.now(timezone.utc),
+    )
+
+
+class BOMOrder(Base):
+    """BOM 缺料下单标记：按 项目 + 等效键 记录该料是否已下单购买"""
+
+    __tablename__ = "bom_orders"
+    __table_args__ = (
+        UniqueConstraint("project_id", "canonical_key", name="uq_bom_order_project_key"),
+    )
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    project_id: Mapped[int] = mapped_column(ForeignKey("projects.id"), nullable=False, index=True)
+    project: Mapped["Project"] = relationship(back_populates="bom_orders")
+    canonical_key: Mapped[str] = mapped_column(String(255), nullable=False, index=True)
+    ordered: Mapped[bool] = mapped_column(default=False)
+
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=lambda: datetime.now(timezone.utc)
     )

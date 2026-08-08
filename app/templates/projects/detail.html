@@ -22,25 +22,98 @@
   </form>
 
   {% if summary %}
-  <h3>缺料汇总：需求 {{ total_items }} 个，缺 <strong class="{{ 'short-zero' if total_short == 0 else 'short-num' }}">{{ total_short }}</strong> 个</h3>
-  <table class="data-table">
+  <h3>缺料汇总：需求 {{ total_items }} 个，缺 <strong class="{{ 'short-zero' if total_short == 0 else 'short-num' }}">{{ total_short }}</strong> 个
+    <span class="order-progress">已下单 <strong id="order-count">{{ ordered_count }}</strong> 项<span id="pending-wrap" {% if pending_count == 0 %}class="muted"{% endif %}> · 待下单 <strong id="pending-count">{{ pending_count }}</strong> 项</span></span>
+  </h3>
+  <table class="data-table" id="shortage-table">
     <thead>
-      <tr><th>值</th><th>封装</th><th>料号</th><th>需求</th><th>库存</th><th>缺料</th><th>建议购买</th></tr>
+      <tr>
+        <th class="chk-col"><input type="checkbox" id="order-all" title="全部缺料标记为已下单"> 已下单</th>
+        <th>值</th><th>封装</th><th>料号</th><th>需求</th><th>库存</th><th>缺料</th><th>建议购买</th>
+      </tr>
     </thead>
     <tbody>
       {% for s in summary %}
-      <tr class="{{ 'row-ok' if s.short == 0 else 'row-short' }}">
+      <tr class="{{ 'row-ok' if s.short == 0 else 'row-short' }}{{ ' row-ordered' if s.ordered }}">
+        <td class="chk-col">
+          <input type="checkbox" class="order-chk" data-key="{{ s.key }}"
+                 {% if s.ordered %}checked{% endif %}
+                 {% if s.short == 0 %}disabled title="库存充足，无需下单"{% endif %}>
+        </td>
         <td>{{ s.value_raw or "—" }}</td>
         <td>{{ s.package or "—" }}</td>
         <td>{{ s.mpn or "—" }}</td>
         <td>{{ s.need }}</td>
         <td>{{ s.stock }}</td>
-        <td>{{ s.short }}</td>
+        <td class="short-cell">{{ s.short }}</td>
         <td>{{ s.short if s.short > 0 else "✓" }}</td>
       </tr>
       {% endfor %}
     </tbody>
   </table>
+
+  <script>
+    (function () {
+      const table = document.getElementById("shortage-table");
+      if (!table) return;
+      const projectId = {{ project.id }};
+      const orderAll = document.getElementById("order-all");
+      const orderCountEl = document.getElementById("order-count");
+      const pendingCountEl = document.getElementById("pending-count");
+      const pendingWrap = document.getElementById("pending-wrap");
+
+      function refresh() {
+        const chks = Array.from(table.querySelectorAll(".order-chk"));
+        const enabled = chks.filter((c) => !c.disabled);
+        const ordered = chks.filter((c) => c.checked).length;
+        const pending = chks.filter((c) => {
+          const cell = c.closest("tr").querySelector(".short-cell");
+          return !c.checked && cell && parseInt(cell.textContent, 10) > 0;
+        }).length;
+        if (orderCountEl) orderCountEl.textContent = String(ordered);
+        if (pendingCountEl) pendingCountEl.textContent = String(pending);
+        if (pendingWrap) pendingWrap.classList.toggle("muted", pending === 0);
+        if (orderAll) {
+          orderAll.disabled = enabled.length === 0;
+          orderAll.checked = enabled.length > 0 && enabled.every((c) => c.checked);
+        }
+      }
+
+      async function setOrder(chk) {
+        chk.disabled = true;
+        const body = new URLSearchParams({
+          canonical_key: chk.dataset.key,
+          ordered: chk.checked ? "1" : "0",
+        });
+        try {
+          const resp = await fetch(`/projects/${projectId}/order`, {
+            method: "POST",
+            headers: { "Content-Type": "application/x-www-form-urlencoded" },
+            body: body.toString(),
+          });
+          if (!resp.ok) chk.checked = !chk.checked;
+        } catch (e) {
+          chk.checked = !chk.checked;
+        }
+        chk.disabled = false;
+        chk.closest("tr").classList.toggle("row-ordered", chk.checked);
+        refresh();
+      }
+
+      table.querySelectorAll(".order-chk").forEach((chk) => {
+        chk.addEventListener("change", () => setOrder(chk));
+      });
+      if (orderAll) {
+        orderAll.addEventListener("change", () => {
+          table.querySelectorAll(".order-chk:not(:disabled)").forEach((chk) => {
+            chk.checked = orderAll.checked;
+            setOrder(chk);
+          });
+        });
+      }
+      refresh();
+    })();
+  </script>
 
   <h3>BOM 明细（{{ items|length }} 行）</h3>
   <table class="data-table">

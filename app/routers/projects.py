@@ -10,7 +10,7 @@ from sqlalchemy.orm import Session
 
 from app.auth import require_auth
 from app.db import get_session
-from app.models import BOMItem, Part, Project, User
+from app.models import BOMItem, BOMOrder, Part, Project, User
 from app.parsers.bom import (
     infer_category_from_unit,
     parse_bom_text,
@@ -120,20 +120,40 @@ def _detail_context(session: Session, project: Project) -> dict[str, Any]:
     summary: list[dict[str, Any]] = []
     total_short = 0
     total_items = 0
+    # 已下单标记（按 项目+等效键 持久化，重新导入 BOM 后仍保留）
+    order_flags = {
+        o.canonical_key: o.ordered
+        for o in session.execute(
+            select(BOMOrder).where(BOMOrder.project_id == project.id)
+        ).scalars()
+    }
     for key, info in agg.items():
         stock = stock_for_canonical_key(session, key)
         need = int(info["qty"])
         short = max(0, need - stock)
         total_short += short
         total_items += need
-        summary.append({**info, "key": key, "stock": stock, "need": need, "short": short})
+        summary.append(
+            {
+                **info,
+                "key": key,
+                "stock": stock,
+                "need": need,
+                "short": short,
+                "ordered": order_flags.get(key, False),
+            }
+        )
     summary.sort(key=lambda s: int(s["short"]), reverse=True)
+    ordered_count = sum(1 for s in summary if s["ordered"])
+    pending_count = sum(1 for s in summary if s["short"] > 0 and not s["ordered"])
     return {
         "project": project,
         "items": items,
         "summary": summary,
         "total_short": total_short,
         "total_items": total_items,
+        "ordered_count": ordered_count,
+        "pending_count": pending_count,
     }
 
 
@@ -225,6 +245,36 @@ def import_bom(
         )
     session.commit()
     return RedirectResponse(f"/projects/{project_id}", status_code=303)
+
+
+@router.post("/{project_id}/order", response_model=None)
+def set_bom_order(
+    project_id: int,
+    canonical_key: str = Form(...),
+    ordered: int = Form(0),
+    session: Session = Depends(get_session),
+    user: User = Depends(require_auth),
+) -> dict[str, Any]:
+    """标记/取消 BOM 缺料项已下单购买（按 项目+等效键）"""
+    project = session.get(Project, project_id)
+    if project is None:
+        return {"ok": False}
+    order = (
+        session.execute(
+            select(BOMOrder).where(
+                BOMOrder.project_id == project_id,
+                BOMOrder.canonical_key == canonical_key,
+            )
+        )
+        .scalars()
+        .first()
+    )
+    if order is None:
+        order = BOMOrder(project_id=project_id, canonical_key=canonical_key)
+        session.add(order)
+    order.ordered = bool(ordered)
+    session.commit()
+    return {"ok": True, "ordered": order.ordered}
 
 
 @router.post("/{project_id}/delete", response_model=None)

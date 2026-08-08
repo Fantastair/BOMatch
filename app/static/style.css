@@ -437,6 +437,33 @@ a.button {
   background: color-mix(in srgb, var(--error) 8%, transparent);
 }
 
+.row-ordered td {
+  color: var(--muted);
+  text-decoration: line-through;
+  text-decoration-color: color-mix(in srgb, var(--muted) 60%, transparent);
+}
+
+.row-ordered .chk-col {
+  text-decoration: none;
+}
+
+.chk-col {
+  width: 1%;
+  white-space: nowrap;
+  text-align: center;
+}
+
+.order-progress {
+  font-size: 0.9rem;
+  font-weight: 400;
+  color: var(--muted);
+  margin-left: 0.75rem;
+}
+
+.order-progress strong {
+  color: var(--accent);
+}
+
 .ok {
   color: #1a7f37;
 }
