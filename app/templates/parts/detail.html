@@ -15,6 +15,15 @@
     <a class="button" href="/parts/{{ part.id }}/edit">编辑料号</a>
   </div>
 
+  {% if sync == 'ok' and sync_msg %}
+  <p class="flash ok">✓ {{ sync_msg }}</p>
+  {% elif sync == 'error' and sync_msg %}
+  <p class="flash warn">✗ 立创同步失败：{{ sync_msg }}</p>
+  {% endif %}
+  {% if dup %}
+  <p class="flash warn">⚠ 检测到最近 10 分钟内已有相同「来源 + 备注」的入库记录，已拦截。如确需再次入库，请勾选下方「确认重复入库」后重新提交。</p>
+  {% endif %}
+
   <div class="meta-box">
     <p>
       <strong>厂商</strong> {{ part.manufacturer or "—" }} ·
@@ -26,11 +35,14 @@
       <strong>介质</strong> {{ part.dielectric or "—" }}
     </p>
     <p><strong>等效组</strong> <code class="mono">{{ part.canonical_key }}</code></p>
+    {% if part.alias_list %}
+    <p><strong>等效别名</strong> {% for a in part.alias_list %}<code class="mono">{{ a }}</code>{% if not loop.last %}、{% endif %}{% endfor %}</p>
+    {% endif %}
     {% if part.lcsc_code_effective %}
     <p>
       <strong>立创编号</strong> {{ part.lcsc_code_effective }}
-      <form method="post" action="/parts/{{ part.id }}/lcsc-sync" class="inline">
-        <button type="submit" class="button small">同步立创价格/参数</button>
+      <form id="lcsc-sync-form" method="post" action="/parts/{{ part.id }}/lcsc-sync" class="inline">
+        <button id="lcsc-sync-btn" type="submit" class="button small">同步立创价格/参数</button>
       </form>
     </p>
     {% endif %}
@@ -56,7 +68,7 @@
       {% for b in batches %}
       <tr>
         <td>
-          <form method="post" action="/batches/{{ b.id }}/location" class="inline">
+          <form id="loc-form-{{ b.id }}" method="post" action="/batches/{{ b.id }}/location" class="inline">
             <select name="location_id" class="loc-sel">
               <option value="">未指定</option>
               {% for loc in locations %}
@@ -74,7 +86,8 @@
         <td>{{ b.received_at.date().isoformat() }}</td>
         <td>
           {% if b.quantity > 0 %}
-          <form method="post" action="/batches/{{ b.id }}/consume" class="inline">
+          <form id="consume-form-{{ b.id }}" method="post" action="/batches/{{ b.id }}/consume" class="inline"
+                onsubmit="return confirm('从该批次领料 {{ b.quantity }} 个（可改数量）？')">
             <input type="number" name="quantity" min="1" max="{{ b.quantity }}" value="1" class="qty-input">
             <button type="submit" class="link-danger">领料</button>
           </form>
@@ -83,8 +96,8 @@
           {% endif %}
         </td>
         <td>
-          <form method="post" action="/batches/{{ b.id }}/delete" class="inline"
-                onsubmit="return confirm('删除该批次？')">
+          <form id="del-form-{{ b.id }}" method="post" action="/batches/{{ b.id }}/delete" class="inline"
+                onsubmit="return confirm('删除该批次（整批移除）？')">
             <button type="submit" class="link-danger">删除</button>
           </form>
         </td>
@@ -96,7 +109,7 @@
   </table>
 
   <h3>批量设置库位</h3>
-  <form method="post" action="/parts/{{ part.id }}/batches/set-location" class="filters">
+  <form id="set-location-form" method="post" action="/parts/{{ part.id }}/batches/set-location" class="filters">
     <select name="location_id">
       <option value="">未指定</option>
       {% for loc in locations %}<option value="{{ loc.id }}">{{ loc.name }}</option>{% endfor %}
@@ -106,7 +119,8 @@
   </form>
 
   <h3>入库</h3>
-  <form method="post" action="/parts/{{ part.id }}/batches" class="form-grid">
+  <form id="batch-form" method="post" action="/parts/{{ part.id }}/batches" class="form-grid"
+        data-recent='{{ recent_batches|tojson }}'>
     <p><label>库位
       <select name="location_id">
         <option value="">未指定</option>
@@ -114,9 +128,31 @@
       </select></label></p>
     <p><label>数量 *<input type="number" name="quantity" min="1" required></label></p>
     <p><label>单价（可选）<input type="number" name="unit_price" min="0" step="0.001"></label></p>
-    <p><label>来源<input type="text" name="source"></label></p>
+    <p><label>来源<input type="text" name="source" placeholder="如 SO26080812262 / 淘宝订单号"></label></p>
     <p class="full"><label>备注<input type="text" name="note"></label></p>
-    <p class="full"><button type="submit">入库</button></p>
+    {% if dup %}
+    <p class="full"><label class="chk"><input type="checkbox" name="force" value="1"> 确认重复入库（来源/备注与最近批次相同）</label></p>
+    {% endif %}
+    <p class="full"><button id="batch-submit-btn" type="submit">入库</button></p>
   </form>
 </main>
+<script>
+  (function () {
+    var form = document.getElementById('batch-form');
+    if (!form) return;
+    var recent = [];
+    try { recent = JSON.parse(form.getAttribute('data-recent') || '[]') || []; } catch (e) { recent = []; }
+    form.addEventListener('submit', function (ev) {
+      var src = (form.elements['source'].value || '').trim();
+      var nt = (form.elements['note'].value || '').trim();
+      if (form.elements['force'] && form.elements['force'].checked) return;
+      var dupFound = recent.some(function (r) {
+        return (r.source || '') === src && (r.note || '') === nt;
+      });
+      if (dupFound && !window.confirm('检测到与最近批次相同的「来源 + 备注」，确认继续入库？')) {
+        ev.preventDefault();
+      }
+    });
+  })();
+</script>
 {% endblock %}

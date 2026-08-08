@@ -1,5 +1,9 @@
 """料号 CRUD 路由"""
 
+import json
+import re
+from urllib.parse import quote
+
 from fastapi import APIRouter, Depends, Form, Request
 from fastapi.responses import HTMLResponse, RedirectResponse
 from sqlalchemy import or_, select
@@ -14,10 +18,35 @@ from app.parsers.canonical import (
     normalize_tolerance,
 )
 from app.parsers.part import part_canonical_key, resolve_value, resolve_voltage
-from app.services.lcsc import apply_product, query_product
+from app.services.lcsc import apply_product, query_product_detailed
 from app.templating import TEMPLATES
 
 router = APIRouter(prefix="/parts", dependencies=[Depends(require_auth)])
+
+
+def _parse_aliases(text: str, mpn: str) -> list[str]:
+    """解析别名文本（逗号/空白/换行分隔）→ 大写去重列表（排除自身 MPN）。"""
+    seen: set[str] = set()
+    result: list[str] = []
+    for raw in re.split(r"[,，;\s]+", text or ""):
+        item = raw.strip().upper()
+        if item and item != mpn.strip().upper() and item not in seen:
+            seen.add(item)
+            result.append(item)
+    return result
+
+
+def _check_lcsc_duplicate(
+    session: Session, lcsc_code: str | None, exclude_part_id: int | None = None
+) -> Part | None:
+    """校验 lcsc_code 唯一性（忽略空值、忽略自身）；重复返回已有料号。"""
+    code = (lcsc_code or "").strip().upper()
+    if not code:
+        return None
+    stmt = select(Part).where(Part.lcsc_code == code)
+    if exclude_part_id is not None:
+        stmt = stmt.where(Part.id != exclude_part_id)
+    return session.execute(stmt).scalars().first()
 
 
 def _build_part_fields(
@@ -33,6 +62,8 @@ def _build_part_fields(
     description: str,
     datasheet_url: str,
     lcsc_code: str = "",
+    aliases: str = "",
+    exclude_part_id: int | None = None,
 ) -> tuple[dict, str | None]:
     """解析表单字段 → (Part 字段 dict, 错误消息)；出错时返回 ({}, 错误)。"""
     mpn = mpn.strip()
@@ -41,6 +72,10 @@ def _build_part_fields(
     category = session.get(Category, category_id)
     if category is None:
         return {}, "类别无效"
+    norm_code = lcsc_code.strip().upper() or None
+    dup = _check_lcsc_duplicate(session, norm_code, exclude_part_id)
+    if dup is not None:
+        return {}, f"立创编号 {norm_code} 已存在（料号 {dup.mpn}），请勿重复录入"
     resolved_value, unit = resolve_value(value_text, category.name)
     if value_text.strip() and resolved_value is None:
         return {}, f"无法解析数值：{value_text}"
@@ -48,6 +83,7 @@ def _build_part_fields(
     norm_package = normalize_package(package) if package.strip() else None
     norm_dielectric = normalize_dielectric(dielectric) if dielectric.strip() else None
     voltage_num = resolve_voltage(voltage_text)
+    alias_list = _parse_aliases(aliases, mpn)
     canonical = part_canonical_key(
         category.name,
         mpn,
@@ -61,7 +97,8 @@ def _build_part_fields(
     return {
         "mpn": mpn,
         "manufacturer": manufacturer.strip() or None,
-        "lcsc_code": lcsc_code.strip().upper() or None,
+        "lcsc_code": norm_code,
+        "aliases": json.dumps(alias_list, ensure_ascii=False) if alias_list else None,
         "category_id": category_id,
         "value": resolved_value,
         "value_unit": unit,
@@ -74,6 +111,61 @@ def _build_part_fields(
         "description": description.strip() or None,
         "datasheet_url": datasheet_url.strip() or None,
     }, None
+
+
+def _reconcile_equivalent_group(session: Session, part: Part) -> None:
+    """特殊件（X 类）等效组：按 mpn + 别名合并到同一 canonical_key。
+
+    以组内最早创建的料号为基准（id 最小），其余同组成员（mpn 或别名相交）统一改写。
+    """
+    if not part.canonical_key or not part.canonical_key.startswith("X|"):
+        return
+    members = {part.mpn.strip().upper()} | set(part.alias_list)
+    if not members:
+        return
+    group = [part]
+    candidates = (
+        session.execute(
+            select(Part).where(
+                Part.category_id == part.category_id,
+                Part.id != part.id,
+                Part.canonical_key.like("X|%"),
+            )
+        )
+        .scalars()
+        .all()
+    )
+    for cand in candidates:
+        cand_members = {cand.mpn.strip().upper()} | set(cand.alias_list)
+        if members & cand_members:
+            group.append(cand)
+            members |= cand_members
+    base = min(group, key=lambda p: p.id).mpn.strip().upper()
+    new_key = f"X|{base}"
+    for p in group:
+        if p.canonical_key != new_key:
+            p.canonical_key = new_key
+
+
+def _sync_part(session: Session, part: Part) -> tuple[bool, str]:
+    """查询立创并回填该料号（不覆盖已有值）；返回 (是否成功, 提示消息)。
+
+    供「新建料号带 C 编号」与「详情页同步按钮」共用，保证保存流程先同步、后跳转。
+    """
+    code = part.lcsc_code_effective
+    if not code:
+        return False, "未填写立创编号，无法同步"
+    try:
+        product, error = query_product_detailed(code)
+        if product is None:
+            return False, error or "未查到该立创编号"
+        apply_product(part, product)
+        # 特殊件（X 类）同步会重算 canonical_key，需重新合并等效组
+        _reconcile_equivalent_group(session, part)
+        session.commit()
+        return True, f"同步成功：{product.model or code}"
+    except Exception as exc:  # noqa: BLE001
+        return False, f"同步异常：{exc}"
 
 
 def _categories(session: Session) -> list[Category]:
@@ -153,6 +245,7 @@ def create_part(
     description: str = Form(""),
     datasheet_url: str = Form(""),
     lcsc_code: str = Form(""),
+    aliases: str = Form(""),
     session: Session = Depends(get_session),
 ) -> HTMLResponse | RedirectResponse:
     fields, error = _build_part_fields(
@@ -168,6 +261,7 @@ def create_part(
         description,
         datasheet_url,
         lcsc_code,
+        aliases,
     )
     if error:
         return TEMPLATES.TemplateResponse(
@@ -176,23 +270,26 @@ def create_part(
             {"part": None, "categories": _categories(session), "error": error, "user": ""},
             status_code=400,
         )
-    session.add(Part(**fields))
+    part = Part(**fields)
+    session.add(part)
     session.commit()
-    return RedirectResponse("/parts", status_code=303)
+    _reconcile_equivalent_group(session, part)
+    # 填了立创编号 → 先同步、后跳转详情页，让用户看到同步结果
+    sync_ok, sync_msg = _sync_part(session, part)
+    session.commit()
+    query = f"?sync={'ok' if sync_ok else 'error'}&sync_msg={quote(sync_msg)}"
+    return RedirectResponse(f"/parts/{part.id}{query}", status_code=303)
 
 
 @router.post("/{part_id}/lcsc-sync", response_model=None)
 def lcsc_sync(part_id: int, session: Session = Depends(get_session)) -> RedirectResponse:
-    """查询立创商城并回填该料号的价格/参数/品牌（不覆盖已有值）"""
+    """查询立创商城并回填该料号的价格/参数/品牌（不覆盖已有值）；失败时带原因跳回详情页。"""
     part = session.get(Part, part_id)
     if part is None:
         return RedirectResponse("/parts", status_code=303)
-    code = part.lcsc_code_effective
-    if code:
-        product = query_product(code)
-        apply_product(part, product)
-        session.commit()
-    return RedirectResponse(f"/parts/{part_id}", status_code=303)
+    sync_ok, sync_msg = _sync_part(session, part)
+    query = f"?sync={'ok' if sync_ok else 'error'}&sync_msg={quote(sync_msg)}"
+    return RedirectResponse(f"/parts/{part_id}{query}", status_code=303)
 
 
 @router.get("/{part_id}", response_class=HTMLResponse, response_model=None)
@@ -202,6 +299,9 @@ def part_detail(
     session: Session = Depends(get_session),
     user: User = Depends(require_auth),
     from_page: str = "",
+    sync: str = "",
+    sync_msg: str = "",
+    dup: str = "",
 ) -> HTMLResponse | RedirectResponse:
     part = session.get(Part, part_id)
     if part is None:
@@ -212,6 +312,16 @@ def part_detail(
         .scalars()
         .all()
     )
+    # 最近批次（来源/备注）供入库防重复提示
+    recent_batches = [
+        {"source": b.source or "", "note": b.note or ""}
+        for b in session.execute(
+            select(Batch)
+            .where(Batch.part_id == part_id)
+            .order_by(Batch.id.desc())
+            .limit(5)
+        ).scalars()
+    ]
     locations = session.execute(select(Location).order_by(Location.name)).scalars().all()
     equivalents = (
         session.execute(
@@ -228,11 +338,15 @@ def part_detail(
         {
             "part": part,
             "batches": batches,
+            "recent_batches": recent_batches,
             "locations": locations,
             "equivalents": equivalents,
             "total_qty": total_qty,
             "total_value": total_value,
             "from_page": from_page,
+            "sync": sync,
+            "sync_msg": sync_msg,
+            "dup": dup == "1",
             "user": user.username,
         },
     )
@@ -268,6 +382,7 @@ def update_part(
     description: str = Form(""),
     datasheet_url: str = Form(""),
     lcsc_code: str = Form(""),
+    aliases: str = Form(""),
     session: Session = Depends(get_session),
 ) -> HTMLResponse | RedirectResponse:
     part = session.get(Part, part_id)
@@ -286,6 +401,8 @@ def update_part(
         description,
         datasheet_url,
         lcsc_code,
+        aliases,
+        exclude_part_id=part_id,
     )
     if error:
         return TEMPLATES.TemplateResponse(
@@ -297,7 +414,9 @@ def update_part(
     for key, val in fields.items():
         setattr(part, key, val)
     session.commit()
-    return RedirectResponse("/parts", status_code=303)
+    _reconcile_equivalent_group(session, part)
+    session.commit()
+    return RedirectResponse(f"/parts/{part_id}", status_code=303)
 
 
 @router.post("/{part_id}/delete", response_model=None)

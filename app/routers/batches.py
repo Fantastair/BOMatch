@@ -128,6 +128,10 @@ def stock_overview(
     )
 
 
+# 相同来源+备注的重复入库判定窗口（分钟）
+_DUP_WINDOW_MINUTES = 10
+
+
 @router.post("/parts/{part_id}/batches", response_model=None)
 def create_batch(
     part_id: int,
@@ -136,12 +140,34 @@ def create_batch(
     unit_price: str = Form(""),
     source: str = Form(""),
     note: str = Form(""),
+    force: str = Form(""),
     session: Session = Depends(get_session),
 ) -> RedirectResponse:
-    """入库：为料号新建一个批次"""
+    """入库：为料号新建一个批次（重复来源+备注时需 force 确认）"""
     part = session.get(Part, part_id)
     if part is None or quantity <= 0:
         return RedirectResponse(f"/parts/{part_id}", status_code=303)
+    src = source.strip() or None
+    nt = note.strip() or None
+    # 防重复：source 或 note 非空时，窗口内已有相同来源+备注的批次 → 拦截并提示
+    if force != "1" and (src or nt):
+        from datetime import datetime, timedelta, timezone
+
+        cutoff = datetime.now(timezone.utc) - timedelta(minutes=_DUP_WINDOW_MINUTES)
+        recent = (
+            session.execute(
+                select(Batch).where(
+                    Batch.part_id == part_id,
+                    Batch.source == src,
+                    Batch.note == nt,
+                    Batch.created_at >= cutoff,
+                )
+            )
+            .scalars()
+            .first()
+        )
+        if recent is not None:
+            return RedirectResponse(f"/parts/{part_id}?dup=1", status_code=303)
     loc_id = int(location_id) if location_id.strip().isdigit() else None
     price = float(unit_price) if unit_price.strip() else None
     session.add(
@@ -150,8 +176,8 @@ def create_batch(
             location_id=loc_id,
             quantity=quantity,
             unit_price=price,
-            source=source.strip() or None,
-            note=note.strip() or None,
+            source=src,
+            note=nt,
         )
     )
     session.commit()

@@ -218,6 +218,49 @@ def test_stock_low_stock_marked() -> None:
         assert "stock-low" in page.text
 
 
+def test_inbound_duplicate_source_note_blocked_then_forced() -> None:
+    """入库防重复：相同 source+note 再次提交被拦截（dup=1），勾选确认后可强制入库"""
+    with TestClient(app) as client:
+        _login(client)
+        part_id = _make_part(client)
+        # 首次入库
+        resp = client.post(
+            f"/parts/{part_id}/batches",
+            data={"quantity": "10", "source": "SO1", "note": "n1"},
+            follow_redirects=False,
+        )
+        assert resp.status_code == 303
+        # 相同 source+note 再次入库 → 拦截
+        resp = client.post(
+            f"/parts/{part_id}/batches",
+            data={"quantity": "10", "source": "SO1", "note": "n1"},
+            follow_redirects=False,
+        )
+        assert resp.status_code == 303
+        assert resp.headers["location"].endswith("?dup=1")
+        with SessionLocal() as session:
+            count = len(session.execute(select(Batch).where(Batch.part_id == part_id)).scalars().all())
+        assert count == 1
+        # 不同 note 不拦截
+        resp = client.post(
+            f"/parts/{part_id}/batches",
+            data={"quantity": "10", "source": "SO1", "note": "n2"},
+            follow_redirects=False,
+        )
+        assert resp.status_code == 303
+        assert "?dup=1" not in resp.headers["location"]
+        # 带 force 确认可强制再次入库
+        resp = client.post(
+            f"/parts/{part_id}/batches",
+            data={"quantity": "10", "source": "SO1", "note": "n1", "force": "1"},
+            follow_redirects=False,
+        )
+        assert resp.status_code == 303
+        with SessionLocal() as session:
+            count = len(session.execute(select(Batch).where(Batch.part_id == part_id)).scalars().all())
+        assert count == 3
+
+
 def test_batch_location_update() -> None:
     """单个批次改库位 + 批量设置（后期补录库位）"""
     with TestClient(app) as client:

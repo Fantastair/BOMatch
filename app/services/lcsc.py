@@ -168,20 +168,37 @@ def query_by_pid(pid: str) -> LcscProduct | None:
     return None
 
 
-def query_product(code: str, pid: str | None = None) -> LcscProduct | None:
-    """查询立创商品：优先方案A，失败且有 pid 时用方案B兜底。"""
+def query_product_detailed(code: str, pid: str | None = None) -> tuple[LcscProduct | None, str | None]:
+    """查询立创商品并返回人类可读的错误原因。
+
+    返回 (product, error)：
+    - 成功：product 非 None，error 为 None；
+    - 失败：product 为 None，error 为原因描述（供页面提示）。
+    方案A（substitute 接口）失败且有 pid 时用方案B（商品页 JSON-LD）兜底。
+    """
+    a_error: str | None = None
     try:
         product = _query_substitute(code)
         if product is not None:
-            return product
-    except Exception:
-        pass
+            return product, None
+        a_error = "substitute 接口未返回该编号商品"
+    except Exception as exc:  # noqa: BLE001
+        a_error = f"substitute 接口异常：{exc}"
     if pid:
         try:
-            return query_by_pid(pid)
-        except Exception:
-            return None
-    return None
+            product = query_by_pid(pid)
+            if product is not None:
+                return product, None
+        except Exception as exc:  # noqa: BLE001
+            return None, f"{a_error}；商品页兜底也失败：{exc}"
+        return None, f"{a_error}；商品页兜底也未查到"
+    return None, a_error
+
+
+def query_product(code: str, pid: str | None = None) -> LcscProduct | None:
+    """查询立创商品：优先方案A，失败且有 pid 时用方案B兜底（兼容旧调用，丢弃错误信息）。"""
+    product, _ = query_product_detailed(code, pid)
+    return product
 
 
 # ---- 回填到 Part ----

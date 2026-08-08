@@ -94,6 +94,58 @@ def _login(client: TestClient) -> None:
     )
 
 
+def _lcsc_part_data(**overrides: str) -> dict[str, str]:
+    data = {
+        "category_id": "1",
+        "mpn": "C21189",
+        "manufacturer": "",
+        "value": "10k",
+        "package": "0603",
+        "tolerance": "",
+        "voltage": "",
+        "dielectric": "",
+        "description": "",
+        "datasheet_url": "",
+        "lcsc_code": "C21189",
+    }
+    data.update(overrides)
+    return data
+
+
+def test_create_part_with_lcsc_syncs_and_redirects_to_detail() -> None:
+    """新建料号带 C 编号：先同步、后跳转详情页，并显示同步成功"""
+    with TestClient(app) as client:
+        _login(client)
+        product = LcscProduct(
+            code="C21189", model="RC0603FR-0710KL", brand="Yageo", tolerance="1%", moq_price=0.5
+        )
+        with patch("app.routers.parts.query_product_detailed", return_value=(product, None)):
+            resp = client.post("/parts", data=_lcsc_part_data(), follow_redirects=False)
+            assert resp.status_code == 303
+            loc = resp.headers["location"]
+            assert loc.startswith("/parts/")
+            assert "sync=ok" in loc
+            page = client.get(loc)
+            assert "同步成功" in page.text
+        with SessionLocal() as session:
+            part = session.query(Part).filter_by(mpn="RC0603FR-0710KL").one()
+            assert part.lcsc_code == "C21189"
+            assert part.tolerance == "1%"
+
+
+def test_create_part_sync_failure_shows_reason() -> None:
+    """同步失败时详情页显示明确错误，而非静默重定向"""
+    with TestClient(app) as client:
+        _login(client)
+        resp = client.post("/parts", data=_lcsc_part_data(), follow_redirects=False)
+        assert resp.status_code == 303
+        loc = resp.headers["location"]
+        assert "sync=error" in loc
+        page = client.get(loc)
+        assert "立创同步失败" in page.text
+        assert "测试环境跳过" in page.text  # autouse mock 返回的原因
+
+
 def test_lcsc_sync_route_backfills_part() -> None:
     with TestClient(app) as client:
         _login(client)
@@ -122,9 +174,11 @@ def test_lcsc_sync_route_backfills_part() -> None:
             session.commit()
 
         product = LcscProduct(code="C21189", model="RC0603FR-0710KL", tolerance="1%", moq_price=0.5)
-        with patch("app.routers.parts.query_product", return_value=product):
+        with patch("app.routers.parts.query_product_detailed", return_value=(product, None)):
             resp = client.post(f"/parts/{part_id}/lcsc-sync", follow_redirects=False)
             assert resp.status_code == 303
+            # 成功时带 sync=ok 回跳详情页
+            assert resp.headers["location"].startswith(f"/parts/{part_id}?sync=ok")
 
         with SessionLocal() as session:
             part = session.get(Part, part_id)

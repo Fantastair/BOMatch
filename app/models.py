@@ -1,5 +1,6 @@
 """数据库模型"""
 
+import json
 import re
 from datetime import datetime, timezone
 
@@ -55,6 +56,22 @@ class Part(Base):
     mpn: Mapped[str] = mapped_column(String(128), nullable=False, index=True)
     manufacturer: Mapped[str | None] = mapped_column(String(128))
     lcsc_code: Mapped[str | None] = mapped_column(String(32), index=True)  # 立创商城编号（C 开头）
+
+    # 等效别名（JSON 数组文本）：仅特殊件（X 类）使用，允许多个 MPN 映射到同一等效组
+    aliases: Mapped[str | None] = mapped_column(Text)  # JSON 字符串，如 '["ALIAS1","ALIAS2"]'
+
+    @property
+    def alias_list(self) -> list[str]:
+        """解析 aliases 字段 → MPN 列表（大写去重）。"""
+        if not self.aliases:
+            return []
+        try:
+            items = json.loads(self.aliases)
+        except (TypeError, ValueError):
+            return []
+        if not isinstance(items, list):
+            return []
+        return [str(x).strip().upper() for x in items if str(x).strip()]
 
     @property
     def lcsc_code_effective(self) -> str | None:

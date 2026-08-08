@@ -146,6 +146,68 @@ def test_part_invalid_value_shows_error() -> None:
         assert "无法解析数值" in resp.text
 
 
+def test_create_part_redirects_to_detail_page() -> None:
+    """保存后应跳转到新料号详情页，而非列表页"""
+    with TestClient(app) as client:
+        _login(client)
+        resp = client.post("/parts", data=_part_data(), follow_redirects=False)
+        assert resp.status_code == 303
+        loc = resp.headers["location"]
+        assert loc.startswith("/parts/")
+        with SessionLocal() as session:
+            part_id = session.execute(select(Part).where(Part.mpn == "RC0603FR-0710KL")).scalar_one().id
+        assert loc.startswith(f"/parts/{part_id}")
+
+
+def test_lcsc_code_duplicate_rejected() -> None:
+    """立创编号唯一性：重复录入应报错"""
+    with TestClient(app) as client:
+        _login(client)
+        _create_part(client, mpn="RC0603FR-0710KL", lcsc_code="C21189")
+        resp = client.post(
+            "/parts",
+            data=_part_data(mpn="ERJ-3EKF1002V", lcsc_code="C21189"),
+            follow_redirects=False,
+        )
+        assert resp.status_code == 400
+        assert "C21189 已存在" in resp.text
+        # 更新为他人已有的编号同样拒绝
+        _create_part(client, mpn="THIRD", lcsc_code="C9999")
+        resp = client.post(
+            f"/parts/{_first_part_id(client)}/edit",
+            data=_part_data(mpn="RC0603FR-0710KL", lcsc_code="C9999"),
+            follow_redirects=False,
+        )
+        assert resp.status_code == 400
+
+
+def _first_part_id(client: TestClient) -> int:
+    with SessionLocal() as session:
+        return session.execute(select(Part.id).order_by(Part.id)).scalars().first()
+
+
+def test_x_category_aliases_merge_equivalent_group() -> None:
+    """特殊件（X 类）别名：不同 MPN 通过别名归入同一等效组"""
+    with TestClient(app) as client:
+        _login(client)
+        _create_part(
+            client,
+            category_id="7",  # 连接器（X 类）
+            mpn="XKB8080-Z",
+            manufacturer="telesky",
+            aliases="通用8x8开关, 8x8-DIP",
+        )
+        _create_part(client, category_id="7", mpn="8x8-DIP", manufacturer="telesky")
+        with SessionLocal() as session:
+            keys = set(session.execute(select(Part.canonical_key)).scalars())
+        assert keys == {"X|XKB8080-Z"}
+        # 详情页应显示别名
+        with SessionLocal() as session:
+            pid = session.execute(select(Part.id).where(Part.mpn == "XKB8080-Z")).scalar_one()
+        detail = client.get(f"/parts/{pid}")
+        assert "等效别名" in detail.text
+
+
 def test_nav_active_highlight() -> None:
     """顶栏应高亮当前模块，其他模块不带 active"""
     with TestClient(app) as client:

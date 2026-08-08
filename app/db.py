@@ -81,6 +81,16 @@ def _recompute_canonical_keys() -> None:
             session.commit()
 
 
+def _ensure_unique_index(table: str, column: str) -> None:
+    """为列建唯一索引（容错：存量已有重复值时跳过，仅对后续新数据生效）。"""
+    index_name = f"uq_{table}_{column}"
+    with engine.begin() as conn:
+        try:
+            conn.exec_driver_sql(f"CREATE UNIQUE INDEX IF NOT EXISTS {index_name} ON {table}({column})")
+        except Exception:  # noqa: BLE001  存量重复 → 跳过，不阻塞启动
+            pass
+
+
 def init_db() -> None:
     """初始化数据库表结构（幂等）"""
     import app.models  # noqa: F401  确保模型已注册
@@ -88,5 +98,8 @@ def init_db() -> None:
     Base.metadata.create_all(bind=engine)
     # 历史表补列迁移
     _ensure_column(engine, "parts", "lcsc_code", "VARCHAR(32)")
+    _ensure_column(engine, "parts", "aliases", "TEXT")
+    # lcsc_code 唯一索引（存量重复时自动跳过；新数据由应用层校验兜底）
+    _ensure_unique_index("parts", "lcsc_code")
     # 规范化规则升级后重算存量等效键
     _recompute_canonical_keys()

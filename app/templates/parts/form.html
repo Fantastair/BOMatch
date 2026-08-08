@@ -15,7 +15,7 @@
 
   {% if error %}<p class="error">{{ error }}</p>{% endif %}
 
-  <form method="post" action="{{ '/parts/' ~ part.id ~ '/edit' if part else '/parts' }}" class="form-grid">
+  <form id="part-form" method="post" action="{{ '/parts/' ~ part.id ~ '/edit' if part else '/parts' }}" class="form-grid">
     <p><label>类别 *
       <select name="category_id" required>
         {% for c in categories %}
@@ -24,18 +24,24 @@
       </select></label></p>
     <p><label>料号 (MPN) *
       <input type="text" name="mpn" required value="{{ part.mpn if part else '' }}"></label></p>
-    <p><label>厂商 <input type="text" name="manufacturer" value="{{ part.manufacturer or '' }}"></label></p>
-    <p><label>立创编号（C 开头，可同步价格/参数）
-      <input type="text" name="lcsc_code" value="{{ part.lcsc_code or '' }}" placeholder="如 C21189"></label></p>
-    <p><label>数值（如 10k / 100nF / 104 / 2R2）
-      <input type="text" name="value" value="{{ part.value_raw or '' }}"></label></p>
-    <p><label>封装（如 0603）<input type="text" name="package" value="{{ part.package or '' }}"></label></p>
-    <p><label>容差（如 1% / J / F）<input type="text" name="tolerance" value="{{ part.tolerance or '' }}"></label></p>
-    <p><label>耐压（如 50V）<input type="text" name="voltage" value="{{ '%g'|format(part.voltage) if part and part.voltage else '' }}"></label></p>
-    <p><label>介质（电容，如 X7R）<input type="text" name="dielectric" value="{{ part.dielectric or '' }}"></label></p>
+    <p><label>厂商 <input type="text" name="manufacturer" value="{{ part.manufacturer or '' }}" placeholder="如 Yageo / UNI-ROYAL"></label></p>
+    <p><label>立创编号（C 开头，可同步价格/参数，全局唯一）
+      <input type="text" name="lcsc_code" value="{{ part.lcsc_code or '' }}" placeholder="如 C21189" pattern="C\d+" title="立创编号格式为 C + 数字，如 C21189"></label></p>
+    <p><label>数值（必填建议）
+      <input type="text" name="value" value="{{ part.value_raw or '' }}" placeholder="如 10k / 9.76kΩ / 100nF / 104 / 2R2 / 22uF"></label></p>
+    <p><label>封装（如 0603 / 0805 / SOT-23 / 插件）
+      <input type="text" name="package" value="{{ part.package or '' }}" placeholder="如 0603，不要带 C/R 前缀（C0603→0603）"></label></p>
+    <p><label>容差（百分比或字母标号，自动归一化）
+      <input type="text" name="tolerance" value="{{ part.tolerance or '' }}" placeholder="如 1% / 5% / J / F / 10%"></label></p>
+    <p><label>耐压（如 50V / 25）
+      <input type="text" name="voltage" value="{{ '%g'|format(part.voltage) if part and part.voltage else '' }}" placeholder="如 50V"></label></p>
+    <p><label>介质（电容，如 X7R / C0G / X5R）
+      <input type="text" name="dielectric" value="{{ part.dielectric or '' }}" placeholder="如 X7R / C0G / X5R"></label></p>
+    <p><label>等效别名（特殊件/IC/连接器用，逗号分隔；同组料号将归入同一等效组）
+      <input type="text" name="aliases" value="{{ ', '.join(part.alias_list) if part and part.alias_list else '' }}" placeholder="如 XKB8080-Z, 通用8x8开关"></label></p>
     <p class="full"><label>描述 <input type="text" name="description" value="{{ part.description or '' }}"></label></p>
     <p class="full"><label>数据手册 URL <input type="url" name="datasheet_url" value="{{ part.datasheet_url or '' }}"></label></p>
-    <p class="full"><button type="submit">保存</button></p>
+    <p class="full"><button id="part-save-btn" type="submit">保存</button></p>
   </form>
 </main>
 {% endblock %}

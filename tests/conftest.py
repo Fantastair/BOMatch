@@ -2,6 +2,7 @@
 
 import os
 import tempfile
+from unittest.mock import patch
 
 import pytest
 
@@ -23,3 +24,11 @@ def _clean_database():
     seed_categories()
     create_default_user_if_needed()
     yield
+
+
+@pytest.fixture(autouse=True)
+def _no_lcsc_network():
+    """屏蔽新建料号保存时的真实立创同步（create_part 现为「先同步、后跳转」），
+    避免测试联网/变慢；需要真实同步的测试可内部再 patch 覆盖。"""
+    with patch("app.routers.parts.query_product_detailed", return_value=(None, "测试环境跳过")):
+        yield

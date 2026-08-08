@@ -19,7 +19,9 @@
         <a href="/locations" class="{{ 'active' if p.startswith('/locations') else '' }}">库位</a>
         <a href="/password" class="{{ 'active' if p.startswith('/password') else '' }}">修改密码</a>
         <span>你好，{{ user }}</span>
-        <form method="post" action="/logout"><button type="submit">退出登录</button></form>
+        <form id="logout-form" method="post" action="/logout">
+          <button id="logout-btn" type="submit">退出登录</button>
+        </form>
       </nav>
     </header>
     {% endif %}
