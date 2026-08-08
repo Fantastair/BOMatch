@@ -147,14 +147,15 @@ def _reconcile_equivalent_group(session: Session, part: Part) -> None:
             p.canonical_key = new_key
 
 
-def _sync_part(session: Session, part: Part) -> tuple[bool, str]:
-    """查询立创并回填该料号（不覆盖已有值）；返回 (是否成功, 提示消息)。
+def _sync_part(session: Session, part: Part) -> tuple[bool | None, str]:
+    """查询立创并回填该料号（不覆盖已有值）；返回 (状态, 提示消息)。
 
+    状态：None=未填写立创编号（跳过，中性提示）；True=成功；False=失败。
     供「新建料号带 C 编号」与「详情页同步按钮」共用，保证保存流程先同步、后跳转。
     """
     code = part.lcsc_code_effective
     if not code:
-        return False, "未填写立创编号，无法同步"
+        return None, "未填写立创编号，跳过同步"
     try:
         product, error = query_product_detailed(code)
         if product is None:
@@ -166,6 +167,13 @@ def _sync_part(session: Session, part: Part) -> tuple[bool, str]:
         return True, f"同步成功：{product.model or code}"
     except Exception as exc:  # noqa: BLE001
         return False, f"同步异常：{exc}"
+
+
+def _sync_query(sync_ok: bool | None, sync_msg: str) -> str:
+    """按同步状态生成详情页回跳 query（ok/error/skip 三种）。"""
+    if sync_ok is None:
+        return f"?sync=skip&sync_msg={quote(sync_msg)}"
+    return f"?sync={'ok' if sync_ok else 'error'}&sync_msg={quote(sync_msg)}"
 
 
 def _categories(session: Session) -> list[Category]:
@@ -277,8 +285,7 @@ def create_part(
     # 填了立创编号 → 先同步、后跳转详情页，让用户看到同步结果
     sync_ok, sync_msg = _sync_part(session, part)
     session.commit()
-    query = f"?sync={'ok' if sync_ok else 'error'}&sync_msg={quote(sync_msg)}"
-    return RedirectResponse(f"/parts/{part.id}{query}", status_code=303)
+    return RedirectResponse(f"/parts/{part.id}{_sync_query(sync_ok, sync_msg)}", status_code=303)
 
 
 @router.post("/{part_id}/lcsc-sync", response_model=None)
@@ -288,8 +295,7 @@ def lcsc_sync(part_id: int, session: Session = Depends(get_session)) -> Redirect
     if part is None:
         return RedirectResponse("/parts", status_code=303)
     sync_ok, sync_msg = _sync_part(session, part)
-    query = f"?sync={'ok' if sync_ok else 'error'}&sync_msg={quote(sync_msg)}"
-    return RedirectResponse(f"/parts/{part_id}{query}", status_code=303)
+    return RedirectResponse(f"/parts/{part_id}{_sync_query(sync_ok, sync_msg)}", status_code=303)
 
 
 @router.get("/{part_id}", response_class=HTMLResponse, response_model=None)

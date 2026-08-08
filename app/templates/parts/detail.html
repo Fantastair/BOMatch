@@ -19,6 +19,8 @@
   <p class="flash ok">✓ {{ sync_msg }}</p>
   {% elif sync == 'error' and sync_msg %}
   <p class="flash warn">✗ 立创同步失败：{{ sync_msg }}</p>
+  {% elif sync == 'skip' and sync_msg %}
+  <p class="flash info">ℹ {{ sync_msg }}</p>
   {% endif %}
   {% if dup %}
   <p class="flash warn">⚠ 检测到最近 10 分钟内已有相同「来源 + 备注」的入库记录，已拦截。如确需再次入库，请勾选下方「确认重复入库」后重新提交。</p>

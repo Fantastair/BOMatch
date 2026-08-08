@@ -7,10 +7,44 @@ from fastapi.testclient import TestClient
 from app.db import SessionLocal
 from app.main import app
 from app.models import Batch, Category, Part
-from app.services.lcsc import LcscProduct, apply_product, map_params, query_product
+from app.services.lcsc import LcscProduct, apply_product, extract_value, map_params, query_product
 
 ADMIN = "admin"
 PASSWORD = "testpass123"
+
+
+def test_extract_value() -> None:
+    """从立创参数表提取数值（容值/阻值/感值）"""
+    assert extract_value({"容值": "22uF", "精度": "±20%"}) == (2.2e-5, "F", "22uF")
+    assert extract_value({"阻值": "10kΩ"}) == (10000.0, "Ω", "10kΩ")
+    assert extract_value({"感值": "1uH"}) == (1e-6, "H", "1uH")
+    assert extract_value({"精度": "±1%"}) == (None, "", None)
+    assert extract_value({}) == (None, "", None)
+
+
+def test_apply_product_fills_value_and_package() -> None:
+    """同步应回填值/封装（此前漏掉），等效键才能正确匹配 BOM"""
+    cat = Category(name="电容")
+    part = Part(mpn="C7432770", category=cat, canonical_key="C|||")
+    product = LcscProduct(
+        code="C7432770",
+        model="HGC0603R5226M100NTHJ",
+        package="0603",
+        params={"容值": "22uF", "精度": "±20%", "额定电压": "10V", "温度系数": "X5R"},
+        tolerance="20%",
+        voltage=10.0,
+        dielectric="X5R",
+        value=2.2e-5,
+        value_unit="F",
+        value_raw="22uF",
+    )
+    apply_product(part, product)
+    assert part.lcsc_code == "C7432770"
+    assert part.package == "0603"
+    assert part.value == 2.2e-5
+    assert part.value_unit == "F"
+    assert part.value_raw == "22uF"
+    assert part.canonical_key == "C|2.2e-05|0603|10|X5R"
 
 
 def test_map_params() -> None:
@@ -144,6 +178,23 @@ def test_create_part_sync_failure_shows_reason() -> None:
         page = client.get(loc)
         assert "立创同步失败" in page.text
         assert "测试环境跳过" in page.text  # autouse mock 返回的原因
+
+
+def test_create_manual_part_skip_sync_neutral() -> None:
+    """手动料号（无立创编号）保存后应中性提示「跳过同步」，而非「同步失败」"""
+    with TestClient(app) as client:
+        _login(client)
+        resp = client.post(
+            "/parts",
+            data=_lcsc_part_data(mpn="MY-MANUAL-PART", lcsc_code=""),
+            follow_redirects=False,
+        )
+        assert resp.status_code == 303
+        loc = resp.headers["location"]
+        assert "sync=skip" in loc
+        page = client.get(loc)
+        assert "跳过同步" in page.text
+        assert "同步失败" not in page.text
 
 
 def test_lcsc_sync_route_backfills_part() -> None:

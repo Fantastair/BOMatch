@@ -11,7 +11,7 @@ import time
 import urllib.request
 from dataclasses import dataclass, field
 
-from app.parsers.canonical import normalize_dielectric, normalize_tolerance
+from app.parsers.canonical import normalize_dielectric, normalize_package, normalize_tolerance
 from app.parsers.part import part_canonical_key
 from app.parsers.values import parse_value
 
@@ -37,6 +37,9 @@ class LcscProduct:
     tolerance: str | None = None  # 归一化容差
     voltage: float | None = None  # 额定电压（V）
     dielectric: str | None = None  # 介质
+    value: float | None = None  # 数值（base 单位）
+    value_unit: str = ""  # 标准单位（Ω/F/H）
+    value_raw: str | None = None  # 原始数值文本（如 22uF）
     moq_price: float | None = None  # MOQ 单价
     stock: int | None = None  # 商城库存（仅参考，不写回本地）
 
@@ -47,6 +50,22 @@ _PARAM_KEYS: dict[str, list[str]] = {
     "voltage": ["额定电压", "耐压", "工作电压"],
     "dielectric": ["温度系数", "介质", "材质"],
 }
+
+# 数值参数键：容值/阻值/感值（含常见变体）
+_VALUE_KEYS: list[str] = ["容值", "容量", "电容", "阻值", "电阻", "感值", "电感"]
+
+
+def extract_value(params: dict | None) -> tuple[float | None, str, str | None]:
+    """从立创参数表提取 (数值 base 单位, 单位, 原始文本)；取不到返回 (None, "", None)。"""
+    for key, raw in (params or {}).items():
+        text = str(raw or "").strip()
+        if not text or text == "-":
+            continue
+        if any(a in key for a in _VALUE_KEYS):
+            parsed = parse_value(text)
+            if parsed is not None:
+                return parsed.value, parsed.unit, parsed.raw
+    return None, "", None
 
 
 def map_params(params: dict | None) -> tuple[str | None, float | None, str | None]:
@@ -115,6 +134,7 @@ def _query_substitute(code: str) -> LcscProduct | None:
     }
     params = main.get("paramLinkedMap") or {}
     tolerance, voltage, dielectric = map_params(params)
+    value, value_unit, value_raw = extract_value(params)
     return LcscProduct(
         code=code,
         model=main.get("productModel"),
@@ -124,6 +144,9 @@ def _query_substitute(code: str) -> LcscProduct | None:
         tolerance=tolerance,
         voltage=voltage,
         dielectric=dielectric,
+        value=value,
+        value_unit=value_unit,
+        value_raw=value_raw,
         moq_price=prices[min(prices)] if prices else None,
         stock=main.get("totalStockNumber") or main.get("stockNumber"),
     )
@@ -219,6 +242,15 @@ def apply_product(part, product: LcscProduct | None) -> None:
         part.mpn = product.model
     if product.brand and not part.manufacturer:
         part.manufacturer = product.brand
+    # 封装/值：同步接口此前漏掉的两个字段，补齐后等效键才能正确匹配 BOM
+    if product.package and not part.package:
+        part.package = normalize_package(product.package)
+    if product.value is not None and part.value is None:
+        part.value = product.value
+        part.value_unit = product.value_unit
+        part.value_raw = product.value_raw or (
+            f"{product.value:g}{product.value_unit}" if product.value_unit else f"{product.value:g}"
+        )
     if product.tolerance and not part.tolerance:
         part.tolerance = product.tolerance
     if product.voltage and not part.voltage:
