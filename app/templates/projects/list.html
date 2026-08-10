@@ -10,9 +10,14 @@
     <a class="button" href="/projects/new">新建项目</a>
   </div>
 
-  <table class="data-table">
+  <div class="table-toolbar">
+    <input type="search" class="live-search" data-live-filter="#projects-table" data-count="projects-count" placeholder="🔍 即时过滤项目...">
+    <span class="filter-count" id="projects-count">{{ projects|length }}</span>
+  </div>
+
+  <table class="data-table" id="projects-table">
     <thead>
-      <tr><th>项目</th><th>说明</th><th>创建时间</th><th></th></tr>
+      <tr><th class="sortable">项目</th><th class="sortable">说明</th><th class="sortable">创建时间</th><th></th></tr>
     </thead>
     <tbody>
       {% for p in projects %}

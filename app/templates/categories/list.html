@@ -13,8 +13,13 @@
     <button type="submit">新增</button>
   </form>
 
-  <table class="data-table">
-    <thead><tr><th>类别</th><th>说明</th><th>料号数</th><th></th></tr></thead>
+  <div class="table-toolbar">
+    <input type="search" class="live-search" data-live-filter="#categories-table" data-count="categories-count" placeholder="🔍 即时过滤类别...">
+    <span class="filter-count" id="categories-count">{{ categories|length }}</span>
+  </div>
+
+  <table class="data-table" id="categories-table">
+    <thead><tr><th class="sortable">类别</th><th class="sortable">说明</th><th class="sortable">料号数</th><th></th></tr></thead>
     <tbody>
       {% for c, count in categories %}
       <tr>

@@ -8,16 +8,22 @@ from sqlalchemy.orm import Session
 
 from app.auth import require_auth
 from app.db import get_session
-from app.models import Location
+from app.models import Location, User
 from app.templating import TEMPLATES
 
 router = APIRouter(prefix="/locations", dependencies=[Depends(require_auth)])
 
 
 @router.get("", response_class=HTMLResponse, response_model=None)
-def list_locations(request: Request, session: Session = Depends(get_session)) -> HTMLResponse:
+def list_locations(
+    request: Request,
+    session: Session = Depends(get_session),
+    user: User = Depends(require_auth),
+) -> HTMLResponse:
     locations = session.execute(select(Location).order_by(Location.name)).scalars().all()
-    return TEMPLATES.TemplateResponse(request, "locations/list.html", {"locations": locations})
+    return TEMPLATES.TemplateResponse(
+        request, "locations/list.html", {"locations": locations, "user": user.username}
+    )
 
 
 @router.post("", response_model=None)

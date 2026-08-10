@@ -43,7 +43,7 @@
     {% if part.lcsc_code_effective %}
     <p>
       <strong>立创编号</strong> {{ part.lcsc_code_effective }}
-      <form id="lcsc-sync-form" method="post" action="/parts/{{ part.id }}/lcsc-sync" class="inline">
+      <form id="lcsc-sync-form" method="post" action="/parts/{{ part.id }}/lcsc-sync" class="inline" data-loading>
         <button id="lcsc-sync-btn" type="submit" class="button small">同步立创价格/参数</button>
       </form>
     </p>
@@ -59,11 +59,11 @@
 
   <h3>库存：共 {{ total_qty }} 个，金额 {{ "%.2f"|format(total_value) }} 元</h3>
 
-  <table class="data-table">
+  <table class="data-table" id="batches-table">
     <thead>
       <tr>
-        <th>库位</th><th>数量</th><th>单价</th><th>金额</th><th>来源</th>
-        <th>备注</th><th>入库日期</th><th>领料</th><th></th>
+        <th class="sortable">库位</th><th class="sortable">数量</th><th class="sortable">单价</th><th class="sortable">金额</th><th class="sortable">来源</th>
+        <th class="sortable">备注</th><th class="sortable">入库日期</th><th>领料</th><th></th>
       </tr>
     </thead>
     <tbody>
@@ -111,7 +111,7 @@
   </table>
 
   <h3>批量设置库位</h3>
-  <form id="set-location-form" method="post" action="/parts/{{ part.id }}/batches/set-location" class="filters">
+  <form id="set-location-form" method="post" action="/parts/{{ part.id }}/batches/set-location" class="filters" data-loading>
     <select name="location_id">
       <option value="">未指定</option>
       {% for loc in locations %}<option value="{{ loc.id }}">{{ loc.name }}</option>{% endfor %}
@@ -121,7 +121,7 @@
   </form>
 
   <h3>入库</h3>
-  <form id="batch-form" method="post" action="/parts/{{ part.id }}/batches" class="form-grid"
+  <form id="batch-form" method="post" action="/parts/{{ part.id }}/batches" class="form-grid" data-loading
         data-recent='{{ recent_batches|tojson }}'>
     <p><label>库位
       <select name="location_id">

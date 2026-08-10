@@ -10,7 +10,7 @@
     {% if user %}
     <header class="topbar">
       <h1><a href="/" class="brand">BOMatch</a></h1>
-      <nav>
+      <nav id="top-nav">
         {% set p = request.url.path %}
         <a href="/projects" class="{{ 'active' if p.startswith('/projects') else '' }}">项目</a>
         <a href="/stock" class="{{ 'active' if p.startswith('/stock') else '' }}">库存</a>
@@ -18,13 +18,18 @@
         <a href="/categories" class="{{ 'active' if p.startswith('/categories') else '' }}">类别</a>
         <a href="/locations" class="{{ 'active' if p.startswith('/locations') else '' }}">库位</a>
         <a href="/password" class="{{ 'active' if p.startswith('/password') else '' }}">修改密码</a>
-        <span>你好，{{ user }}</span>
-        <form id="logout-form" method="post" action="/logout">
-          <button id="logout-btn" type="submit">退出登录</button>
-        </form>
       </nav>
+      <div class="nav-actions">
+        <span class="user-chip">👤 {{ user }}</span>
+        <form id="logout-form" method="post" action="/logout">
+          <button id="logout-btn" type="submit" class="button secondary small">退出登录</button>
+        </form>
+        <button class="nav-toggle" id="nav-toggle" type="button" aria-label="菜单" aria-expanded="false">☰</button>
+      </div>
     </header>
     {% endif %}
     {% block content %}{% endblock %}
+    <button class="back-to-top" type="button" aria-label="返回顶部">↑</button>
+    <script src="/static/app.js"></script>
   </body>
 </html>

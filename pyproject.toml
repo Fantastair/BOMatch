@@ -1,6 +1,6 @@
 [project]
 name = "bomatch"
-version = "0.1.0"
+version = "1.0.0"
 description = "BOMatch - 个人电子元件物料管理系统"
 readme = "README.md"
 license = "MIT"

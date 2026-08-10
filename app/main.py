@@ -35,7 +35,7 @@ async def lifespan(_app: FastAPI):
     yield
 
 
-app = FastAPI(title="BOMatch", version="0.1.0", lifespan=lifespan)
+app = FastAPI(title="BOMatch", version="1.0.0", lifespan=lifespan)
 app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
 
 app.include_router(parts_router.router)

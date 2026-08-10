@@ -7,7 +7,7 @@
   <h1>BOMatch</h1>
   <p class="subtitle">个人电子元件物料管理系统</p>
   {% if error %}<p class="error">{{ error }}</p>{% endif %}
-  <form method="post" action="/login">
+  <form method="post" action="/login" data-loading>
     <p><label>用户名 <input type="text" name="username" required autofocus></label></p>
     <p><label>密码 <input type="password" name="password" required></label></p>
     <p><button type="submit">登录</button></p>

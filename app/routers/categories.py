@@ -8,21 +8,27 @@ from sqlalchemy.orm import Session
 
 from app.auth import require_auth
 from app.db import get_session
-from app.models import Category, Part
+from app.models import Category, Part, User
 from app.templating import TEMPLATES
 
 router = APIRouter(prefix="/categories", dependencies=[Depends(require_auth)])
 
 
 @router.get("", response_class=HTMLResponse, response_model=None)
-def list_categories(request: Request, session: Session = Depends(get_session)) -> HTMLResponse:
+def list_categories(
+    request: Request,
+    session: Session = Depends(get_session),
+    user: User = Depends(require_auth),
+) -> HTMLResponse:
     categories = session.execute(
         select(Category, func.count(Part.id))
         .outerjoin(Part, Part.category_id == Category.id)
         .group_by(Category.id)
         .order_by(Category.sort_order, Category.id)
     ).all()
-    return TEMPLATES.TemplateResponse(request, "categories/list.html", {"categories": categories})
+    return TEMPLATES.TemplateResponse(
+        request, "categories/list.html", {"categories": categories, "user": user.username}
+    )
 
 
 @router.post("", response_model=None)

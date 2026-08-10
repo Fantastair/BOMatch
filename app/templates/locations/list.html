@@ -13,8 +13,13 @@
     <button type="submit">新增</button>
   </form>
 
-  <table class="data-table">
-    <thead><tr><th>库位</th><th>说明</th><th></th></tr></thead>
+  <div class="table-toolbar">
+    <input type="search" class="live-search" data-live-filter="#locations-table" data-count="locations-count" placeholder="🔍 即时过滤库位...">
+    <span class="filter-count" id="locations-count">{{ locations|length }}</span>
+  </div>
+
+  <table class="data-table" id="locations-table">
+    <thead><tr><th class="sortable">库位</th><th class="sortable">说明</th><th></th></tr></thead>
     <tbody>
       {% for loc in locations %}
       <tr>

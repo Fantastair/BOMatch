@@ -29,7 +29,7 @@
     <thead>
       <tr>
         <th class="chk-col"><input type="checkbox" id="order-all" title="全部缺料标记为已下单"> 已下单</th>
-        <th>值</th><th>封装</th><th>料号</th><th>需求</th><th>库存</th><th>缺料</th><th>建议购买</th>
+        <th class="sortable">值</th><th class="sortable">封装</th><th class="sortable">料号</th><th class="sortable">需求</th><th class="sortable">库存</th><th class="sortable">缺料</th><th class="sortable">建议购买</th>
       </tr>
     </thead>
     <tbody>
@@ -116,9 +116,9 @@
   </script>
 
   <h3>BOM 明细（{{ items|length }} 行）</h3>
-  <table class="data-table">
+  <table class="data-table" id="bom-items-table">
     <thead>
-      <tr><th>位号</th><th>料号</th><th>值</th><th>封装</th><th>数量</th><th>匹配</th></tr>
+      <tr><th class="sortable">位号</th><th class="sortable">料号</th><th class="sortable">值</th><th class="sortable">封装</th><th class="sortable">数量</th><th class="sortable">匹配</th></tr>
     </thead>
     <tbody>
       {% for it in items %}

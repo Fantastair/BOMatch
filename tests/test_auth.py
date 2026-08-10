@@ -37,7 +37,8 @@ def test_login_success_then_access_home() -> None:
 
         home = client.get("/")
         assert home.status_code == 200
-        assert f"你好，{ADMIN}" in home.text
+        # 登录后顶栏显示当前用户名（1.0.0 起为「👤 admin」用户胶囊）
+        assert ADMIN in home.text
 
 
 def test_logout_clears_session() -> None:
