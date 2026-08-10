@@ -17,13 +17,20 @@
         <a href="/parts" class="{{ 'active' if p.startswith('/parts') else '' }}">料号</a>
         <a href="/categories" class="{{ 'active' if p.startswith('/categories') else '' }}">类别</a>
         <a href="/locations" class="{{ 'active' if p.startswith('/locations') else '' }}">库位</a>
-        <a href="/password" class="{{ 'active' if p.startswith('/password') else '' }}">修改密码</a>
       </nav>
       <div class="nav-actions">
-        <span class="user-chip">👤 {{ user }}</span>
-        <form id="logout-form" method="post" action="/logout">
-          <button id="logout-btn" type="submit" class="button secondary small">退出登录</button>
-        </form>
+        <div class="user-menu" id="user-menu">
+          <button class="user-menu-toggle" id="user-menu-toggle" type="button" aria-expanded="false" aria-haspopup="true">
+            <span>👤 {{ user }}</span><span class="caret">▾</span>
+          </button>
+          <div class="user-menu-dropdown" id="user-menu-dropdown" hidden>
+            <a href="/password">账户设置</a>
+            <div class="dropdown-divider"></div>
+            <form method="post" action="/logout" data-loading>
+              <button type="submit" class="dropdown-item">退出登录</button>
+            </form>
+          </div>
+        </div>
         <button class="nav-toggle" id="nav-toggle" type="button" aria-label="菜单" aria-expanded="false">☰</button>
       </div>
     </header>

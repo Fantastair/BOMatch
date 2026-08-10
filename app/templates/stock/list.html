@@ -11,8 +11,8 @@
       <strong>{{ "%.2f"|format(total_value) }}</strong> 元</div>
   </div>
 
-  <form method="get" action="/stock" class="filters">
-    <input type="search" name="q" value="{{ q }}" placeholder="搜索料号 / 厂商 / 数值 / 封装...">
+  <form method="get" action="/stock" class="filters" data-autosubmit>
+    <input type="search" name="q" value="{{ q }}" placeholder="搜索料号 / 厂商 / 数值 / 封装..." autocomplete="off">
     <select name="category_id">
       <option value="">全部类别</option>
       {% for c in categories %}
@@ -38,7 +38,7 @@
       {% endfor %}
     </select>
     <label class="chk"><input type="checkbox" name="has_stock" value="1" {% if has_stock == '1' %}checked{% endif %}> 有库存</label>
-    <button type="submit">筛选</button>
+    <span class="filter-count" id="stock-count">共 {{ rows|length }} 行</span>
   </form>
 
   <table class="data-table" id="stock-table">

@@ -1,5 +1,7 @@
 """库存批次与库存总览路由：入库、领料、删除批次、按料号聚合的库存视图"""
 
+from typing import Any
+
 from fastapi import APIRouter, Depends, Form, Request
 from fastapi.responses import HTMLResponse, RedirectResponse
 from sqlalchemy import func, or_, select
@@ -16,10 +18,28 @@ router = APIRouter(dependencies=[Depends(require_auth)])
 LOW_STOCK_THRESHOLD = 10
 
 
-def _categories(session: Session) -> list[Category]:
-    return list(
-        session.execute(select(Category).order_by(Category.sort_order, Category.id)).scalars()
-    )
+def _candidate_part_ids(
+    cat_id: int | None,
+    manufacturer: str,
+    package: str,
+    loc_id: int | None,
+    *,
+    skip_category: bool = False,
+    skip_manufacturer: bool = False,
+    skip_package: bool = False,
+    skip_location: bool = False,
+) -> Any:
+    """构建"应用部分筛选条件"的 Part.id 子查询，供下拉候选联动（跳过某下拉自身）"""
+    sub = select(Part.id).join(Batch, Batch.part_id == Part.id, isouter=True)
+    if cat_id is not None and not skip_category:
+        sub = sub.where(Part.category_id == cat_id)
+    if manufacturer and not skip_manufacturer:
+        sub = sub.where(Part.manufacturer == manufacturer)
+    if package and not skip_package:
+        sub = sub.where(Part.package == package)
+    if loc_id is not None and not skip_location:
+        sub = sub.where(Batch.location_id == loc_id)
+    return sub
 
 
 @router.get("/stock", response_class=HTMLResponse, response_model=None)
@@ -84,10 +104,34 @@ def stock_overview(
         session.scalar(select(func.coalesce(func.sum(Batch.quantity * Batch.unit_price), 0.0)))
         or 0.0
     )
+    # ---- 下拉候选值联动：每个下拉的选项 = 其他筛选条件下真实存在的值（排除自身） ----
+    categories = (
+        session.execute(
+            select(Category)
+            .join(Part, Part.category_id == Category.id)
+            .where(
+                Part.id.in_(
+                    _candidate_part_ids(cat_id, manufacturer, package, loc_id, skip_category=True)
+                )
+            )
+            .order_by(Category.sort_order, Category.id)
+            .distinct()
+        )
+        .scalars()
+        .all()
+    )
     brands = (
         session.execute(
             select(Part.manufacturer)
-            .where(Part.manufacturer.is_not(None), Part.manufacturer != "")
+            .where(
+                Part.id.in_(
+                    _candidate_part_ids(
+                        cat_id, manufacturer, package, loc_id, skip_manufacturer=True
+                    )
+                ),
+                Part.manufacturer.is_not(None),
+                Part.manufacturer != "",
+            )
             .distinct()
             .order_by(Part.manufacturer)
         )
@@ -97,20 +141,40 @@ def stock_overview(
     packages = (
         session.execute(
             select(Part.package)
-            .where(Part.package.is_not(None), Part.package != "")
+            .where(
+                Part.id.in_(
+                    _candidate_part_ids(cat_id, manufacturer, package, loc_id, skip_package=True)
+                ),
+                Part.package.is_not(None),
+                Part.package != "",
+            )
             .distinct()
             .order_by(Part.package)
         )
         .scalars()
         .all()
     )
-    locations = session.execute(select(Location).order_by(Location.name)).scalars().all()
+    locations = (
+        session.execute(
+            select(Location)
+            .join(Batch, Batch.location_id == Location.id)
+            .where(
+                Batch.part_id.in_(
+                    _candidate_part_ids(cat_id, manufacturer, package, loc_id, skip_location=True)
+                )
+            )
+            .order_by(Location.name)
+            .distinct()
+        )
+        .scalars()
+        .all()
+    )
     return TEMPLATES.TemplateResponse(
         request,
         "stock/list.html",
         {
             "rows": rows,
-            "categories": _categories(session),
+            "categories": categories,
             "brands": brands,
             "packages": packages,
             "locations": locations,

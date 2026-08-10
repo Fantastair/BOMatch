@@ -101,6 +101,30 @@
     });
   }
 
+  /* ---------- 3b. 用户下拉菜单 ---------- */
+  function initUserMenu() {
+    var toggle = document.getElementById("user-menu-toggle");
+    var dropdown = document.getElementById("user-menu-dropdown");
+    if (!toggle || !dropdown) return;
+    function close() {
+      dropdown.hidden = true;
+      toggle.setAttribute("aria-expanded", "false");
+    }
+    toggle.addEventListener("click", function (e) {
+      e.stopPropagation();
+      var willOpen = dropdown.hidden;
+      dropdown.hidden = !willOpen;
+      toggle.setAttribute("aria-expanded", String(willOpen));
+    });
+    // 点击菜单外部或按 Esc 关闭
+    document.addEventListener("click", function (e) {
+      if (!e.target.closest("#user-menu")) close();
+    });
+    document.addEventListener("keydown", function (e) {
+      if (e.key === "Escape") close();
+    });
+  }
+
   /* ---------- 4. flash 消息自动消失 ---------- */
   function initFlash() {
     $all(".flash").forEach(function (el) {
@@ -139,13 +163,36 @@
     });
   }
 
+  /* ---------- 7. 筛选表单自动提交（实时筛选，data-autosubmit） ---------- */
+  function initAutoSubmitFilters() {
+    document.querySelectorAll("form[data-autosubmit]").forEach(function (form) {
+      var debounceTimer = null;
+      // 下拉框 / 复选框：change 立即提交
+      form.querySelectorAll("select, input[type=checkbox]").forEach(function (ctl) {
+        ctl.addEventListener("change", function () {
+          clearTimeout(debounceTimer);
+          form.submit();
+        });
+      });
+      // 搜索框：停止输入 400ms 后自动提交（防抖）
+      form.querySelectorAll("input[type=search]").forEach(function (q) {
+        q.addEventListener("input", function () {
+          clearTimeout(debounceTimer);
+          debounceTimer = setTimeout(function () { form.submit(); }, 400);
+        });
+      });
+    });
+  }
+
   /* ---------- 启动 ---------- */
   document.addEventListener("DOMContentLoaded", function () {
     initTableSort();
     initLiveFilter();
     initNav();
+    initUserMenu();
     initFlash();
     initBackToTop();
     initLoadingButtons();
+    initAutoSubmitFilters();
   });
 })();
