@@ -196,6 +196,19 @@ def stock_overview(
 _DUP_WINDOW_MINUTES = 10
 
 
+def _part_detail_redirect(part_id: int, from_page: str = "", extra: str = "") -> RedirectResponse:
+    """重定向回料号详情页，保留 from_page 参数（从库存进入时面包屑保持"库存→"）"""
+    params: list[str] = []
+    if from_page == "stock":
+        params.append("from_page=stock")
+    if extra:
+        params.append(extra)
+    url = f"/parts/{part_id}"
+    if params:
+        url += "?" + "&".join(params)
+    return RedirectResponse(url, status_code=303)
+
+
 @router.post("/parts/{part_id}/batches", response_model=None)
 def create_batch(
     part_id: int,
@@ -205,12 +218,13 @@ def create_batch(
     source: str = Form(""),
     note: str = Form(""),
     force: str = Form(""),
+    from_page: str = Form(""),
     session: Session = Depends(get_session),
 ) -> RedirectResponse:
     """入库：为料号新建一个批次（重复来源+备注时需 force 确认）"""
     part = session.get(Part, part_id)
     if part is None or quantity <= 0:
-        return RedirectResponse(f"/parts/{part_id}", status_code=303)
+        return _part_detail_redirect(part_id, from_page)
     src = source.strip() or None
     nt = note.strip() or None
     # 防重复：source 或 note 非空时，窗口内已有相同来源+备注的批次 → 拦截并提示
@@ -231,7 +245,7 @@ def create_batch(
             .first()
         )
         if recent is not None:
-            return RedirectResponse(f"/parts/{part_id}?dup=1", status_code=303)
+            return _part_detail_redirect(part_id, from_page, extra="dup=1")
     loc_id = int(location_id) if location_id.strip().isdigit() else None
     price = float(unit_price) if unit_price.strip() else None
     session.add(
@@ -245,13 +259,14 @@ def create_batch(
         )
     )
     session.commit()
-    return RedirectResponse(f"/parts/{part_id}", status_code=303)
+    return _part_detail_redirect(part_id, from_page)
 
 
 @router.post("/batches/{batch_id}/consume", response_model=None)
 def consume_batch(
     batch_id: int,
     quantity: int = Form(...),
+    from_page: str = Form(""),
     session: Session = Depends(get_session),
 ) -> RedirectResponse:
     """领料：从批次扣减数量"""
@@ -259,14 +274,16 @@ def consume_batch(
     if batch is None:
         return RedirectResponse("/stock", status_code=303)
     if quantity <= 0 or quantity > batch.quantity:
-        return RedirectResponse(f"/parts/{batch.part_id}", status_code=303)
+        return _part_detail_redirect(batch.part_id, from_page)
     batch.quantity -= quantity
     session.commit()
-    return RedirectResponse(f"/parts/{batch.part_id}", status_code=303)
+    return _part_detail_redirect(batch.part_id, from_page)
 
 
 @router.post("/batches/{batch_id}/delete", response_model=None)
-def delete_batch(batch_id: int, session: Session = Depends(get_session)) -> RedirectResponse:
+def delete_batch(
+    batch_id: int, from_page: str = Form(""), session: Session = Depends(get_session)
+) -> RedirectResponse:
     """删除批次（整批移除，如售出/报废）"""
     batch = session.get(Batch, batch_id)
     if batch is None:
@@ -274,13 +291,14 @@ def delete_batch(batch_id: int, session: Session = Depends(get_session)) -> Redi
     part_id = batch.part_id
     session.delete(batch)
     session.commit()
-    return RedirectResponse(f"/parts/{part_id}", status_code=303)
+    return _part_detail_redirect(part_id, from_page)
 
 
 @router.post("/batches/{batch_id}/location", response_model=None)
 def update_batch_location(
     batch_id: int,
     location_id: str = Form(""),
+    from_page: str = Form(""),
     session: Session = Depends(get_session),
 ) -> RedirectResponse:
     """修改单个批次库位（后期补录）"""
@@ -289,7 +307,7 @@ def update_batch_location(
         return RedirectResponse("/stock", status_code=303)
     batch.location_id = int(location_id) if location_id.strip().isdigit() else None
     session.commit()
-    return RedirectResponse(f"/parts/{batch.part_id}", status_code=303)
+    return _part_detail_redirect(batch.part_id, from_page)
 
 
 @router.post("/parts/{part_id}/batches/set-location", response_model=None)
@@ -297,6 +315,7 @@ def set_part_batch_locations(
     part_id: int,
     location_id: str = Form(""),
     only_unassigned: str = Form(""),
+    from_page: str = Form(""),
     session: Session = Depends(get_session),
 ) -> RedirectResponse:
     """批量设置该料号所有批次（或仅未分配库位的）的库位"""
@@ -311,4 +330,4 @@ def set_part_batch_locations(
     for b in batches:
         b.location_id = loc_id
     session.commit()
-    return RedirectResponse(f"/parts/{part_id}", status_code=303)
+    return _part_detail_redirect(part_id, from_page)

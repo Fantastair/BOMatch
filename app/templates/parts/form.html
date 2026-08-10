@@ -16,6 +16,7 @@
   {% if error %}<p class="error">{{ error }}</p>{% endif %}
 
   <form id="part-form" method="post" action="{{ '/parts/' ~ part.id ~ '/edit' if part else '/parts' }}" class="form-grid" data-loading>
+    <input type="hidden" name="from_page" value="{{ from_page or '' }}">
     <p><label>类别 *
       <select name="category_id" required>
         {% for c in categories %}

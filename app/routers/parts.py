@@ -229,13 +229,20 @@ def list_parts(
 @router.get("/new", response_class=HTMLResponse, response_model=None)
 def new_part(
     request: Request,
+    from_page: str = "",
     session: Session = Depends(get_session),
     user: User = Depends(require_auth),
 ) -> HTMLResponse:
     return TEMPLATES.TemplateResponse(
         request,
         "parts/form.html",
-        {"part": None, "categories": _categories(session), "error": None, "user": user.username},
+        {
+            "part": None,
+            "categories": _categories(session),
+            "error": None,
+            "from_page": from_page,
+            "user": user.username,
+        },
     )
 
 
@@ -254,6 +261,7 @@ def create_part(
     datasheet_url: str = Form(""),
     lcsc_code: str = Form(""),
     aliases: str = Form(""),
+    from_page: str = Form(""),
     session: Session = Depends(get_session),
 ) -> HTMLResponse | RedirectResponse:
     fields, error = _build_part_fields(
@@ -275,7 +283,13 @@ def create_part(
         return TEMPLATES.TemplateResponse(
             request,
             "parts/form.html",
-            {"part": None, "categories": _categories(session), "error": error, "user": ""},
+            {
+                "part": None,
+                "categories": _categories(session),
+                "error": error,
+                "from_page": from_page,
+                "user": "",
+            },
             status_code=400,
         )
     part = Part(**fields)
@@ -285,17 +299,25 @@ def create_part(
     # 填了立创编号 → 先同步、后跳转详情页，让用户看到同步结果
     sync_ok, sync_msg = _sync_part(session, part)
     session.commit()
-    return RedirectResponse(f"/parts/{part.id}{_sync_query(sync_ok, sync_msg)}", status_code=303)
+    url = f"/parts/{part.id}{_sync_query(sync_ok, sync_msg)}"
+    if from_page == "stock":
+        url += "&from_page=stock"
+    return RedirectResponse(url, status_code=303)
 
 
 @router.post("/{part_id}/lcsc-sync", response_model=None)
-def lcsc_sync(part_id: int, session: Session = Depends(get_session)) -> RedirectResponse:
+def lcsc_sync(
+    part_id: int, from_page: str = Form(""), session: Session = Depends(get_session)
+) -> RedirectResponse:
     """查询立创商城并回填该料号的价格/参数/品牌（不覆盖已有值）；失败时带原因跳回详情页。"""
     part = session.get(Part, part_id)
     if part is None:
         return RedirectResponse("/parts", status_code=303)
     sync_ok, sync_msg = _sync_part(session, part)
-    return RedirectResponse(f"/parts/{part_id}{_sync_query(sync_ok, sync_msg)}", status_code=303)
+    url = f"/parts/{part_id}{_sync_query(sync_ok, sync_msg)}"
+    if from_page == "stock":
+        url += "&from_page=stock"
+    return RedirectResponse(url, status_code=303)
 
 
 @router.get("/{part_id}", response_class=HTMLResponse, response_model=None)
@@ -359,6 +381,7 @@ def part_detail(
 def edit_part(
     part_id: int,
     request: Request,
+    from_page: str = "",
     session: Session = Depends(get_session),
     user: User = Depends(require_auth),
 ) -> HTMLResponse:
@@ -366,7 +389,13 @@ def edit_part(
     return TEMPLATES.TemplateResponse(
         request,
         "parts/form.html",
-        {"part": part, "categories": _categories(session), "error": None, "user": user.username},
+        {
+            "part": part,
+            "categories": _categories(session),
+            "error": None,
+            "from_page": from_page,
+            "user": user.username,
+        },
     )
 
 
@@ -386,6 +415,7 @@ def update_part(
     datasheet_url: str = Form(""),
     lcsc_code: str = Form(""),
     aliases: str = Form(""),
+    from_page: str = Form(""),
     session: Session = Depends(get_session),
 ) -> HTMLResponse | RedirectResponse:
     part = session.get(Part, part_id)
@@ -411,7 +441,13 @@ def update_part(
         return TEMPLATES.TemplateResponse(
             request,
             "parts/form.html",
-            {"part": part, "categories": _categories(session), "error": error, "user": ""},
+            {
+                "part": part,
+                "categories": _categories(session),
+                "error": error,
+                "from_page": from_page,
+                "user": "",
+            },
             status_code=400,
         )
     for key, val in fields.items():
@@ -419,7 +455,10 @@ def update_part(
     session.commit()
     _reconcile_equivalent_group(session, part)
     session.commit()
-    return RedirectResponse(f"/parts/{part_id}", status_code=303)
+    url = f"/parts/{part_id}"
+    if from_page == "stock":
+        url += "?from_page=stock"
+    return RedirectResponse(url, status_code=303)
 
 
 @router.post("/{part_id}/delete", response_model=None)

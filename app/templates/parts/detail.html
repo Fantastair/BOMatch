@@ -12,7 +12,7 @@
   </nav>
   <div class="page-head">
     <h2>{{ part.mpn }}</h2>
-    <a class="button" href="/parts/{{ part.id }}/edit">编辑料号</a>
+    <a class="button" href="/parts/{{ part.id }}/edit{% if from_page == 'stock' %}?from_page=stock{% endif %}">编辑料号</a>
   </div>
 
   {% if sync == 'ok' and sync_msg %}
@@ -44,6 +44,7 @@
     <p>
       <strong>立创编号</strong> {{ part.lcsc_code_effective }}
       <form id="lcsc-sync-form" method="post" action="/parts/{{ part.id }}/lcsc-sync" class="inline" data-loading>
+        <input type="hidden" name="from_page" value="{{ from_page }}">
         <button id="lcsc-sync-btn" type="submit" class="button small">同步立创价格/参数</button>
       </form>
     </p>
@@ -71,6 +72,7 @@
       <tr>
         <td>
           <form id="loc-form-{{ b.id }}" method="post" action="/batches/{{ b.id }}/location" class="inline">
+            <input type="hidden" name="from_page" value="{{ from_page }}">
             <select name="location_id" class="loc-sel">
               <option value="">未指定</option>
               {% for loc in locations %}
@@ -90,6 +92,7 @@
           {% if b.quantity > 0 %}
           <form id="consume-form-{{ b.id }}" method="post" action="/batches/{{ b.id }}/consume" class="inline"
                 onsubmit="return confirm('从该批次领料 ' + this.querySelector('input[name=quantity]').value + ' 个？');">
+            <input type="hidden" name="from_page" value="{{ from_page }}">
             <input type="number" name="quantity" min="1" max="{{ b.quantity }}" value="1" class="qty-input">
             <button type="submit" class="link-danger">领料</button>
           </form>
@@ -100,6 +103,7 @@
         <td>
           <form id="del-form-{{ b.id }}" method="post" action="/batches/{{ b.id }}/delete" class="inline"
                 onsubmit="return confirm('删除该批次（整批移除）？')">
+            <input type="hidden" name="from_page" value="{{ from_page }}">
             <button type="submit" class="link-danger">删除</button>
           </form>
         </td>
@@ -112,6 +116,7 @@
 
   <h3>批量设置库位</h3>
   <form id="set-location-form" method="post" action="/parts/{{ part.id }}/batches/set-location" class="filters" data-loading>
+    <input type="hidden" name="from_page" value="{{ from_page }}">
     <select name="location_id">
       <option value="">未指定</option>
       {% for loc in locations %}<option value="{{ loc.id }}">{{ loc.name }}</option>{% endfor %}
@@ -123,6 +128,7 @@
   <h3>入库</h3>
   <form id="batch-form" method="post" action="/parts/{{ part.id }}/batches" class="form-grid" data-loading
         data-recent='{{ recent_batches|tojson }}'>
+    <input type="hidden" name="from_page" value="{{ from_page }}">
     <p><label>库位
       <select name="location_id">
         <option value="">未指定</option>
