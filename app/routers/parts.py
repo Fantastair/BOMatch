@@ -148,7 +148,7 @@ def _reconcile_equivalent_group(session: Session, part: Part) -> None:
 
 
 def _sync_part(session: Session, part: Part) -> tuple[bool | None, str]:
-    """查询立创并回填该料号（不覆盖已有值）；返回 (状态, 提示消息)。
+    """查询立创并回填该料号（参数不覆盖已有值，价格始终更新）；返回 (状态, 提示消息)。
 
     状态：None=未填写立创编号（跳过，中性提示）；True=成功；False=失败。
     供「新建料号带 C 编号」与「详情页同步按钮」共用，保证保存流程先同步、后跳转。

@@ -87,6 +87,19 @@ def test_apply_product_backfills_and_recalculates() -> None:
     assert batch.unit_price == 0.0942
 
 
+def test_apply_product_updates_existing_price() -> None:
+    """同步时已有价格的批次也应更新为立创最新价（Issue #6）"""
+    cat = Category(name="电阻")
+    part = Part(mpn="RC0603FR-0710KL", category=cat, canonical_key="R|10000|0603|")
+    batch = Batch(quantity=100, unit_price=0.05)  # 已有旧价
+    part.batches.append(batch)
+
+    product = LcscProduct(code="C21189", model="RC0603FR-0710KL", moq_price=0.0942)
+    apply_product(part, product)
+
+    assert batch.unit_price == 0.0942  # 旧价被更新为立创最新价
+
+
 def test_apply_product_keeps_existing_values() -> None:
     cat = Category(name="电容")
     part = Part(

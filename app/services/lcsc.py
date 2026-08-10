@@ -228,7 +228,10 @@ def query_product(code: str, pid: str | None = None) -> LcscProduct | None:
 
 # ---- 回填到 Part ----
 def apply_product(part, product: LcscProduct | None) -> None:
-    """把立创查询结果回填到 Part（不覆盖已有值），并重算等效键。
+    """把立创查询结果回填到 Part，并重算等效键。
+
+    参数/厂商等字段不覆盖已有值；但价格（moq_price）同步时始终更新，
+    以便立创价格变化后已有价格的批次也能刷新（Issue #6）。
 
     注意：只修改内存中的对象，提交由调用方负责。
     """
@@ -270,8 +273,7 @@ def apply_product(part, product: LcscProduct | None) -> None:
         part.voltage,
         part.dielectric,
     )
-    # 价格只回填给无单价的批次
+    # 同步时用立创最新 MOQ 单价更新所有批次（Issue #6：已有价格也应更新）
     if product.moq_price is not None:
         for batch in part.batches:
-            if batch.unit_price is None:
-                batch.unit_price = product.moq_price
+            batch.unit_price = product.moq_price

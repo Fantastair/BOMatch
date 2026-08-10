@@ -89,7 +89,7 @@
         <td>
           {% if b.quantity > 0 %}
           <form id="consume-form-{{ b.id }}" method="post" action="/batches/{{ b.id }}/consume" class="inline"
-                onsubmit="return confirm('从该批次领料 {{ b.quantity }} 个（可改数量）？')">
+                onsubmit="return confirm('从该批次领料 ' + this.querySelector('input[name=quantity]').value + ' 个？');">
             <input type="number" name="quantity" min="1" max="{{ b.quantity }}" value="1" class="qty-input">
             <button type="submit" class="link-danger">领料</button>
           </form>
